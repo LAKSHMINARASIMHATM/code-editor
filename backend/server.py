@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import List
 import uuid
 from datetime import datetime, timezone
+import socketio
+import asyncio
+import random
 
 
 ROOT_DIR = Path(__file__).parent
@@ -19,11 +22,32 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# Create Socket.IO server
+sio = socketio.AsyncServer(
+    async_mode='asgi',
+    cors_allowed_origins='*',
+    logger=False,
+    engineio_logger=False
+)
+
 # Create the main app without a prefix
 app = FastAPI()
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+
+# Store active users and their session data
+active_users = {}
+user_colors = [
+    {'color': '#3B82F6', 'name': 'blue'},
+    {'color': '#10B981', 'name': 'emerald'},
+    {'color': '#F59E0B', 'name': 'amber'},
+    {'color': '#EC4899', 'name': 'pink'},
+    {'color': '#8B5CF6', 'name': 'violet'},
+    {'color': '#06B6D4', 'name': 'cyan'},
+    {'color': '#F97316', 'name': 'orange'},
+    {'color': '#EF4444', 'name': 'red'},
+]
 
 
 # Define Models
