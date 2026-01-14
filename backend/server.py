@@ -90,6 +90,116 @@ async def get_status_checks():
     
     return status_checks
 
+# WebSocket event handlers
+@sio.event
+async def connect(sid, environ):
+    logger.info(f"Client connected: {sid}")
+    
+@sio.event
+async def disconnect(sid):
+    logger.info(f"Client disconnected: {sid}")
+    if sid in active_users:
+        user_data = active_users[sid]
+        del active_users[sid]
+        # Notify other users
+        await sio.emit('user_left', {
+            'userId': sid,
+            'userName': user_data['name']
+        }, skip_sid=sid)
+        # Broadcast updated user list
+        await broadcast_users()
+
+@sio.event
+async def join_session(sid, data):
+    user_name = data.get('name', f'User-{len(active_users) + 1}')
+    color = user_colors[len(active_users) % len(user_colors)]
+    
+    active_users[sid] = {
+        'id': sid,
+        'name': user_name,
+        'color': color,
+        'cursor': {'line': 1, 'column': 0},
+        'isTyping': False
+    }
+    
+    # Send current users to the new user
+    await sio.emit('session_joined', {
+        'userId': sid,
+        'users': [
+            {**user, 'id': user_id, 'isLocal': user_id == sid}
+            for user_id, user in active_users.items()
+        ]
+    }, to=sid)
+    
+    # Notify others about the new user
+    await sio.emit('user_joined', active_users[sid], skip_sid=sid)
+    
+    logger.info(f"User joined: {user_name} ({sid})")
+
+@sio.event
+async def cursor_move(sid, data):
+    if sid in active_users:
+        active_users[sid]['cursor'] = data.get('cursor', {'line': 1, 'column': 0})
+        # Broadcast cursor position to other users
+        await sio.emit('cursor_update', {
+            'userId': sid,
+            'cursor': active_users[sid]['cursor']
+        }, skip_sid=sid)
+
+@sio.event
+async def typing_status(sid, data):
+    if sid in active_users:
+        active_users[sid]['isTyping'] = data.get('isTyping', False)
+        await sio.emit('typing_update', {
+            'userId': sid,
+            'isTyping': active_users[sid]['isTyping']
+        }, skip_sid=sid)
+
+@sio.event
+async def code_change(sid, data):
+    # Broadcast code changes to other users
+    await sio.emit('code_update', {
+        'userId': sid,
+        'operation': data.get('operation'),
+        'file': data.get('file'),
+        'content': data.get('content')
+    }, skip_sid=sid)
+
+@sio.event
+async def terminal_command(sid, data):
+    command = data.get('command', '')
+    logger.info(f"Terminal command from {sid}: {command}")
+    
+    # Simple command simulation
+    output = ""
+    if command.strip() == "ls":
+        output = "main.js  utils.py  App.tsx  styles.css  README.md"
+    elif command.strip().startswith("echo"):
+        output = command.replace("echo", "").strip()
+    elif command.strip() == "pwd":
+        output = "/workspace"
+    elif command.strip() == "whoami":
+        output = active_users.get(sid, {}).get('name', 'user')
+    elif command.strip() == "date":
+        output = datetime.now().strftime("%a %b %d %H:%M:%S UTC %Y")
+    elif command.strip() == "help":
+        output = "Available commands: ls, pwd, whoami, date, echo, clear, help"
+    elif command.strip() == "clear":
+        output = "\x1b[2J\x1b[H"  # ANSI clear screen
+    else:
+        output = f"bash: {command.strip()}: command not found"
+    
+    await sio.emit('terminal_output', {
+        'output': output + '\n'
+    }, to=sid)
+
+async def broadcast_users():
+    users_list = [
+        {**user, 'id': user_id}
+        for user_id, user in active_users.items()
+    ]
+    await sio.emit('users_update', {'users': users_list})
+
 # Include the router in the main app
 app.include_router(api_router)
 
