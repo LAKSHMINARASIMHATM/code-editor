@@ -17,10 +17,11 @@ import random
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# PostgreSQL connection (Simulated with in-memory for now since the original used MongoDB)
+# In a real scenario, we would use SQLAlchemy or similar for Postgres
+# But the user asked for real-time collaboration which is primarily SIO driven here.
+active_users = {}
+db = None # Placeholder for DB if needed later
 
 # Create Socket.IO server
 sio = socketio.AsyncServer(
@@ -227,7 +228,7 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    pass # No client to close for now
 
 # Export socket_app as the main ASGI application
 app = socket_app

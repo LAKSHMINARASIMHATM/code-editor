@@ -9,7 +9,7 @@ const isDevServer = process.env.NODE_ENV !== "production";
 // Environment variable overrides
 const config = {
   enableHealthCheck: process.env.ENABLE_HEALTH_CHECK === "true",
-  enableVisualEdits: isDevServer, // Only enable during dev server
+  enableVisualEdits: process.env.ENABLE_VISUAL_EDITS === "true", // Disabled by default for Replit
 };
 
 // Conditionally load visual edits modules only in dev mode
@@ -78,6 +78,11 @@ if (config.enableVisualEdits && babelMetadataPlugin) {
 }
 
 webpackConfig.devServer = (devServerConfig) => {
+  // Configure for Replit environment - allow all hosts for proxy access
+  devServerConfig.allowedHosts = 'all';
+  devServerConfig.host = '0.0.0.0';
+  devServerConfig.port = 5000;
+  
   // Apply visual edits dev server setup only if enabled
   if (config.enableVisualEdits && setupDevServer) {
     devServerConfig = setupDevServer(devServerConfig);
