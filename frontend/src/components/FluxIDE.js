@@ -49,6 +49,7 @@ export const FluxIDE = () => {
   const fileInputRef = useRef(null);
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
+  const fitAddonRef = useRef(null);
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const socketRef = useRef(null);
@@ -171,20 +172,29 @@ export const FluxIDE = () => {
       },
       fontFamily: 'JetBrains Mono, monospace',
       fontSize: 14,
+      allowProposedApi: true
     });
     
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
-    term.open(terminalRef.current);
     
-    // Use a small delay for fit to ensure dimensions are ready
-    setTimeout(() => {
-      if (terminalRef.current) {
-        fitAddon.fit();
-      }
-    }, 100);
-
+    // We open first, but don't fit until the container has actual dimensions
+    term.open(terminalRef.current);
     xtermRef.current = term;
+    fitAddonRef.current = fitAddon;
+
+    // Use ResizeObserver for robust dimension management
+    const resizeObserver = new ResizeObserver(() => {
+      if (terminalRef.current && terminalRef.current.clientWidth > 0 && terminalRef.current.clientHeight > 0) {
+        try {
+          fitAddon.fit();
+        } catch (e) {
+          console.warn('Xterm fit failed', e);
+        }
+      }
+    });
+    
+    resizeObserver.observe(terminalRef.current);
 
     term.onData(data => {
       if (socketRef.current) {
@@ -200,6 +210,7 @@ export const FluxIDE = () => {
 
     return () => {
       socketRef.current.off('terminal_output', handleOutput);
+      resizeObserver.disconnect();
       term.dispose();
     };
   }, [socketRef.current]);
@@ -675,7 +686,7 @@ export const FluxIDE = () => {
               <Terminal size={14} />
               <span>TERMINAL</span>
             </div>
-            <div className="console-output" data-testid="console-output" ref={terminalRef} style={{ height: '200px' }}>
+            <div className="console-output" data-testid="console-output" ref={terminalRef} style={{ height: '200px', overflow: 'hidden' }}>
             </div>
           </div>
         </div>
