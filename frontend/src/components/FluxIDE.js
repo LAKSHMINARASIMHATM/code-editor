@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import io from 'socket.io-client';
+import { executeCode, extractVariables } from '../utils/codeExecution';
 import { 
   Play, Pause, SkipForward, CornerDownRight, CornerUpLeft, 
   RotateCcw, Square, Circle, FileText, FolderOpen, 
