@@ -12,6 +12,22 @@ const SOCKET_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:8000' 
   : `https://${window.location.hostname.replace('5000', '8000')}`;
 
+const FILE_STRUCTURE = [
+  { name: 'main.js', language: 'javascript', icon: FileText },
+  { name: 'utils.py', language: 'python', icon: FileText },
+  { name: 'App.tsx', language: 'typescript', icon: FileText },
+  { name: 'styles.css', language: 'css', icon: FileText },
+  { name: 'README.md', language: 'markdown', icon: FileText },
+];
+
+const INITIAL_CODE = {
+  'main.js': `function calculateSum(a, b) {\n  const result = a + b;\n  console.log("Result:", result);\n  return result;\n}\n\nconst numbers = [1, 2, 3, 4, 5];\nconst doubled = numbers.map(n => n * 2);\nconsole.log("Doubled:", doubled);\n\n// Collaborative IDE Demo\n`,
+  'utils.py': `def calculate_sum(a, b):\n    result = a + b\n    print(f"Result: {result}")\n    return result\n\nnumbers = [1, 2, 3, 4, 5]\ndoubled = [n * 2 for n in numbers]\nprint(f"Doubled: {doubled}")\n`,
+  'App.tsx': `import React from 'react';\n\ninterface Props {\n  name: string;\n}\n\nconst App: React.FC<Props> = ({ name }) => {\n  return (\n    <div>\n      <h1>Hello, {name}!</h1>\n    </div>\n  );\n};\n\nexport default App;\n`,
+  'styles.css': `.container {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  min-height: 100vh;\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n}\n`,
+  'README.md': `# Flux IDE\n\nA production-grade collaborative code editor.\n\n## Features\n- Multi-language syntax highlighting\n- Real-time collaboration\n- Intelligent code completion\n- Live debugging\n`,
+};
+
 export const FluxIDE = () => {
   const [activeFile, setActiveFile] = useState('main.js');
   const [files, setFiles] = useState(INITIAL_CODE);
