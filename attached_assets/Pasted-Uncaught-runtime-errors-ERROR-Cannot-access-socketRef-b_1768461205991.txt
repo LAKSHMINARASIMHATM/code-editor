@@ -1,0 +1,33 @@
+Uncaught runtime errors:
+×
+ERROR
+Cannot access 'socketRef' before initialization
+ReferenceError: Cannot access 'socketRef' before initialization
+    at FluxIDE (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.9a6d36e1f5018c3db484.hot-update.js:8058:7)
+    at Object.react_stack_bottom_frame (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/static/js/bundle.js:23871:18)
+    at renderWithHooks (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/static/js/bundle.js:14744:20)
+    at updateFunctionComponent (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/static/js/bundle.js:16133:17)
+    at beginWork (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/static/js/bundle.js:16702:16)
+    at runWithFiberInDEV (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/static/js/bundle.js:11220:68)
+    at performUnitOfWork (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/static/js/bundle.js:19129:93)
+    at workLoopSync (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/static/js/bundle.js:19024:38)
+    at renderRootSync (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/static/js/bundle.js:19009:7)
+    at performWorkOnRoot (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/static/js/bundle.js:18682:33)
+ERROR
+Cannot read properties of undefined (reading 'dimensions')
+TypeError: Cannot read properties of undefined (reading 'dimensions')
+    at get dimensions (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.621747bcde1ded689b43.hot-update.js:2417:41)
+    at t.Viewport.syncScrollArea (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.621747bcde1ded689b43.hot-update.js:1197:70)
+    at https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.621747bcde1ded689b43.hot-update.js:1174:873
+ERROR
+Cannot read properties of undefined (reading 'dimensions')
+TypeError: Cannot read properties of undefined (reading 'dimensions')
+    at get dimensions (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.621747bcde1ded689b43.hot-update.js:2417:41)
+    at t.Viewport._innerRefresh (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.621747bcde1ded689b43.hot-update.js:1188:60)
+    at https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.621747bcde1ded689b43.hot-update.js:1184:149
+ERROR
+Cannot read properties of undefined (reading 'dimensions')
+TypeError: Cannot read properties of undefined (reading 'dimensions')
+    at get dimensions (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.621747bcde1ded689b43.hot-update.js:2417:41)
+    at t.Viewport._innerRefresh (https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.621747bcde1ded689b43.hot-update.js:1188:60)
+    at https://c14c0f3d-3b8f-49b4-b60b-889b6e76e968-00-1t02piyth5qv6.pike.replit.dev/main.621747bcde1ded689b43.hot-update.js:1184:149

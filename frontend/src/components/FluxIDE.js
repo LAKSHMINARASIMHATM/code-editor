@@ -176,11 +176,20 @@ export const FluxIDE = () => {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(terminalRef.current);
-    fitAddon.fit();
+    
+    // Use a small delay for fit to ensure dimensions are ready
+    setTimeout(() => {
+      if (terminalRef.current) {
+        fitAddon.fit();
+      }
+    }, 100);
+
     xtermRef.current = term;
 
     term.onData(data => {
-      socketRef.current.emit('terminal_input', { input: data });
+      if (socketRef.current) {
+        socketRef.current.emit('terminal_input', { input: data });
+      }
     });
 
     const handleOutput = (data) => {
@@ -220,7 +229,9 @@ export const FluxIDE = () => {
       
       clearTimeout(window.typingTimeout);
       window.typingTimeout = setTimeout(() => {
-        socketRef.current.emit('typing_status', { isTyping: false });
+        if (socketRef.current) {
+          socketRef.current.emit('typing_status', { isTyping: false });
+        }
       }, 1000);
     }
   };
