@@ -8,6 +8,9 @@ import {
   Users, Activity, Zap, Clock, Search, Settings,
   ChevronRight, Eye, Terminal, Code2, Upload
 } from 'lucide-react';
+import { Terminal as XTerm } from 'xterm';
+import { FitAddon } from 'xterm-addon-fit';
+import 'xterm/css/xterm.css';
 
 const SOCKET_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:8000' 
@@ -29,10 +32,6 @@ const INITIAL_CODE = {
   'README.md': `# Flux IDE\n\nA production-grade collaborative code editor.\n\n## Features\n- Multi-language syntax highlighting\n- Real-time collaboration\n- Intelligent code completion\n- Live debugging\n`,
 };
 
-import { Terminal as XTerm } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import 'xterm/css/xterm.css';
-
 export const FluxIDE = () => {
   const [activeFile, setActiveFile] = useState('main.js');
   const [files, setFiles] = useState(INITIAL_CODE);
@@ -50,6 +49,16 @@ export const FluxIDE = () => {
   const fileInputRef = useRef(null);
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
+  const editorRef = useRef(null);
+  const monacoRef = useRef(null);
+  const socketRef = useRef(null);
+  const opsCountRef = useRef(0);
+
+  // Collaboration state
+  const [users, setUsers] = useState([]);
+  const [remoteCursors, setRemoteCursors] = useState({});
+  const [opsPerSecond, setOpsPerSecond] = useState(0);
+  const [sessionLatency, setSessionLatency] = useState(42);
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -91,88 +100,6 @@ export const FluxIDE = () => {
       setLanguage(file.language);
     }
   };
-
-  useEffect(() => {
-    if (!terminalRef.current || !socketRef.current) return;
-
-    const term = new XTerm({
-      theme: {
-        background: '#0a0a0a',
-        foreground: '#E5E5E5',
-        cursor: '#F97316',
-      },
-      fontFamily: 'JetBrains Mono, monospace',
-      fontSize: 14,
-    });
-    
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    term.open(terminalRef.current);
-    fitAddon.fit();
-    xtermRef.current = term;
-
-    term.onData(data => {
-      socketRef.current.emit('terminal_input', { input: data });
-    });
-
-    const handleOutput = (data) => {
-      term.write(data.output);
-    };
-
-    socketRef.current.on('terminal_output', handleOutput);
-
-    return () => {
-      socketRef.current.off('terminal_output', handleOutput);
-      term.dispose();
-    };
-  }, [socketRef.current]);
-  
-  const [fileList, setFileList] = useState(FILE_STRUCTURE);
-  const fileInputRef = useRef(null);
-
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target.result;
-      const fileName = file.name;
-      
-      let lang = 'javascript';
-      if (fileName.endsWith('.py')) lang = 'python';
-      else if (fileName.endsWith('.tsx') || fileName.endsWith('.ts')) lang = 'typescript';
-      else if (fileName.endsWith('.css')) lang = 'css';
-      else if (fileName.endsWith('.md')) lang = 'markdown';
-      else if (fileName.endsWith('.html')) lang = 'html';
-      else if (fileName.endsWith('.json')) lang = 'json';
-
-      setFiles(prev => ({ ...prev, [fileName]: content }));
-      setFileList(prev => {
-        if (prev.find(f => f.name === fileName)) return prev;
-        return [...prev, { name: fileName, language: lang, icon: FileText }];
-      });
-      setActiveFile(fileName);
-      setLanguage(lang);
-      setConsoleOutput(prev => [...prev, { type: 'success', message: `Imported local file: ${fileName}`, timestamp: Date.now() }]);
-    };
-    reader.readAsText(file);
-  };
-
-  const triggerFileUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  // Collaboration state
-  const [users, setUsers] = useState([]);
-  const [remoteCursors, setRemoteCursors] = useState({});
-  const [opsPerSecond, setOpsPerSecond] = useState(0);
-  const [sessionLatency, setSessionLatency] = useState(42);
-  
-  const editorRef = useRef(null);
-  const monacoRef = useRef(null);
-  const socketRef = useRef(null);
-  const opsCountRef = useRef(0);
 
   // Initialize Socket.IO connection
   useEffect(() => {
@@ -231,6 +158,42 @@ export const FluxIDE = () => {
       socket.disconnect();
     };
   }, [activeFile]);
+
+  // Terminal logic
+  useEffect(() => {
+    if (!terminalRef.current || !socketRef.current) return;
+
+    const term = new XTerm({
+      theme: {
+        background: '#0a0a0a',
+        foreground: '#E5E5E5',
+        cursor: '#F97316',
+      },
+      fontFamily: 'JetBrains Mono, monospace',
+      fontSize: 14,
+    });
+    
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(terminalRef.current);
+    fitAddon.fit();
+    xtermRef.current = term;
+
+    term.onData(data => {
+      socketRef.current.emit('terminal_input', { input: data });
+    });
+
+    const handleOutput = (data) => {
+      term.write(data.output);
+    };
+
+    socketRef.current.on('terminal_output', handleOutput);
+
+    return () => {
+      socketRef.current.off('terminal_output', handleOutput);
+      term.dispose();
+    };
+  }, [socketRef.current]);
 
   // Sync cursor position
   useEffect(() => {
@@ -476,14 +439,6 @@ export const FluxIDE = () => {
     setExecutionLine(null);
   };
 
-  const changeFile = (fileName) => {
-    setActiveFile(fileName);
-    const file = fileList.find(f => f.name === fileName);
-    if (file) {
-      setLanguage(file.language);
-    }
-  };
-
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString();
@@ -703,11 +658,11 @@ export const FluxIDE = () => {
             />
           </div>
 
-          {/* Console Output */}
+          {/* Console Output (Terminal) */}
           <div className="panel-section" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
             <div className="panel-title flex items-center gap-2">
               <Terminal size={14} />
-              <span>CONSOLE OUTPUT</span>
+              <span>TERMINAL</span>
             </div>
             <div className="console-output" data-testid="console-output" ref={terminalRef} style={{ height: '200px' }}>
             </div>
@@ -731,26 +686,13 @@ export const FluxIDE = () => {
                     style={{ borderColor: user.color.color }}
                   />
                   <div className="user-info">
-                    <div className="user-name" style={{ color: user.color.color }}>
-                      {user.name}
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-white">{user.name}</span>
+                      {user.isLocal && <span className="text-[10px] bg-white/10 px-1 rounded text-neutral-400">YOU</span>}
+                      {user.isTyping && <Zap size={10} className="text-orange-500 animate-pulse" />}
                     </div>
-                    <div className="user-status">
-                      {user.isLocal ? (
-                        <span className="flex items-center gap-1">
-                          <Circle size={8} className="fill-emerald-500 text-emerald-500" />
-                          You
-                        </span>
-                      ) : user.isTyping ? (
-                        <span className="flex items-center gap-1 typing-indicator">
-                          <Circle size={8} className="fill-orange-500 text-orange-500" />
-                          Typing...
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1">
-                          <Circle size={8} className="fill-emerald-500 text-emerald-500" />
-                          Active
-                        </span>
-                      )}
+                    <div className="text-[10px] text-neutral-500">
+                      Line {user.cursor.line}, Col {user.cursor.column}
                     </div>
                   </div>
                 </div>
@@ -764,50 +706,17 @@ export const FluxIDE = () => {
               <span>SESSION STATS</span>
             </div>
             <div className="stats-grid">
-              <div className="stat-item" data-testid="stat-users">
-                <span className="stat-label">Concurrent Users</span>
-                <span className="stat-value">{users.length}/100</span>
+              <div className="stat-card">
+                <div className="stat-label">LATENCY</div>
+                <div className="stat-value text-emerald-500">{Math.round(sessionLatency)}ms</div>
               </div>
-              <div className="stat-item" data-testid="stat-latency">
-                <span className="stat-label">Network Latency</span>
-                <span className="stat-value">{Math.round(sessionLatency)}ms</span>
+              <div className="stat-card">
+                <div className="stat-label">OPS/SEC</div>
+                <div className="stat-value text-orange-500">{opsPerSecond}</div>
               </div>
-              <div className="stat-item" data-testid="stat-ops">
-                <span className="stat-label">Operations/sec</span>
-                <span className="stat-value">{opsPerSecond}</span>
-              </div>
-              <div className="stat-item" data-testid="stat-uptime">
-                <span className="stat-label">Session Uptime</span>
-                <span className="stat-value">2h 34m</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="panel-section">
-            <div className="panel-title flex items-center gap-2">
-              <Settings size={14} />
-              <span>SETTINGS</span>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between text-neutral-400">
-                <span>Language:</span>
-                <span className="text-white">{language}</span>
-              </div>
-              <div className="flex justify-between text-neutral-400">
-                <span>Theme:</span>
-                <span className="text-white">Flux Dark</span>
-              </div>
-              <div className="flex justify-between text-neutral-400">
-                <span>Font Size:</span>
-                <span className="text-white">14px</span>
-              </div>
-              <div className="flex justify-between text-neutral-400">
-                <span>Tab Size:</span>
-                <span className="text-white">2 spaces</span>
-              </div>
-              <div className="flex justify-between text-neutral-400">
-                <span>Auto-save:</span>
-                <span className="text-emerald-500">Enabled</span>
+              <div className="stat-card">
+                <div className="stat-label">UPTIME</div>
+                <div className="stat-value text-blue-500">04:20:15</div>
               </div>
             </div>
           </div>
@@ -817,20 +726,22 @@ export const FluxIDE = () => {
       {/* Status Bar */}
       <div className="ide-status-bar" data-testid="status-bar">
         <div className="flex items-center gap-4">
-          <span data-testid="status-language">{language.toUpperCase()}</span>
-          <span data-testid="status-position">Ln 1, Col 1</span>
-          <span data-testid="status-chars">{files[activeFile]?.length || 0} chars</span>
-          <span className="flex items-center gap-1" data-testid="status-users-active">
-            <Users size={12} />
-            {users.length} users active
-          </span>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+            <span>Connected</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock size={14} />
+            <span>{new Date().toLocaleTimeString()}</span>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <span>UTF-8</span>
-          <span className="flex items-center gap-1 text-emerald-500">
-            <Circle size={8} className="fill-emerald-500" />
-            Saved
-          </span>
+          <span className="text-orange-500 uppercase">{language}</span>
+          <div className="flex items-center gap-1">
+            <Zap size={14} className="text-orange-500" />
+            <span>PRO MODE</span>
+          </div>
         </div>
       </div>
     </div>
