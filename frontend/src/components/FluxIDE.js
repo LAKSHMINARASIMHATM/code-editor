@@ -6,7 +6,7 @@ import {
   Play, Pause, SkipForward, CornerDownRight, CornerUpLeft, 
   RotateCcw, Square, Circle, FileText, FolderOpen, 
   Users, Activity, Zap, Clock, Search, Settings,
-  ChevronRight, Eye, Terminal, Code2
+  ChevronRight, Eye, Terminal, Code2, Upload
 } from 'lucide-react';
 
 const SOCKET_URL = window.location.hostname === 'localhost' 
@@ -42,6 +42,42 @@ export const FluxIDE = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [executionLine, setExecutionLine] = useState(null);
   
+  const [fileList, setFileList] = useState(FILE_STRUCTURE);
+  const fileInputRef = useRef(null);
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target.result;
+      const fileName = file.name;
+      
+      let lang = 'javascript';
+      if (fileName.endsWith('.py')) lang = 'python';
+      else if (fileName.endsWith('.tsx') || fileName.endsWith('.ts')) lang = 'typescript';
+      else if (fileName.endsWith('.css')) lang = 'css';
+      else if (fileName.endsWith('.md')) lang = 'markdown';
+      else if (fileName.endsWith('.html')) lang = 'html';
+      else if (fileName.endsWith('.json')) lang = 'json';
+
+      setFiles(prev => ({ ...prev, [fileName]: content }));
+      setFileList(prev => {
+        if (prev.find(f => f.name === fileName)) return prev;
+        return [...prev, { name: fileName, language: lang, icon: FileText }];
+      });
+      setActiveFile(fileName);
+      setLanguage(lang);
+      setConsoleOutput(prev => [...prev, { type: 'success', message: `Imported local file: ${fileName}`, timestamp: Date.now() }]);
+    };
+    reader.readAsText(file);
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
   // Collaboration state
   const [users, setUsers] = useState([]);
   const [remoteCursors, setRemoteCursors] = useState({});
@@ -357,7 +393,7 @@ export const FluxIDE = () => {
 
   const changeFile = (fileName) => {
     setActiveFile(fileName);
-    const file = FILE_STRUCTURE.find(f => f.name === fileName);
+    const file = fileList.find(f => f.name === fileName);
     if (file) {
       setLanguage(file.language);
     }
@@ -405,7 +441,22 @@ export const FluxIDE = () => {
               <span>FILES</span>
             </div>
             <div className="file-tree">
-              {FILE_STRUCTURE.map((file) => (
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                style={{ display: 'none' }}
+                accept=".js,.py,.tsx,.ts,.css,.md,.html,.json"
+              />
+              <button
+                className="file-item w-full flex items-center gap-2 mb-2 p-2 rounded hover:bg-white/5 text-orange-500 border border-orange-500/30 transition-colors"
+                onClick={triggerFileUpload}
+                data-testid="import-file-btn"
+              >
+                <Upload size={16} />
+                <span>Import Local File</span>
+              </button>
+              {fileList.map((file) => (
                 <div
                   key={file.name}
                   className={`file-item ${activeFile === file.name ? 'active' : ''}`}
@@ -525,7 +576,7 @@ export const FluxIDE = () => {
         <div className="ide-editor-container">
           {/* Tabs */}
           <div className="ide-tabs" data-testid="editor-tabs">
-            {FILE_STRUCTURE.map((file) => (
+            {fileList.map((file) => (
               <button
                 key={file.name}
                 className={`ide-tab ${activeFile === file.name ? 'active' : ''}`}

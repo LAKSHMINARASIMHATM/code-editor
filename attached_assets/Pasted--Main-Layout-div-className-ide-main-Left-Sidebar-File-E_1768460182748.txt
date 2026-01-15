@@ -1,0 +1,135 @@
+
+      {/* Main Layout */}
+      <div className="ide-main">
+        {/* Left Sidebar - File Explorer */}
+        <div className="ide-sidebar" data-testid="file-sidebar">
+          <div className="panel-section">
+            <div className="panel-title flex items-center gap-2">
+              <FolderOpen size={14} />
+              <span>FILES</span>
+            </div>
+            <div className="file-tree">
+              {FILE_STRUCTURE.map((file) => (
+                <div
+                  key={file.name}
+                  className={`file-item ${activeFile === file.name ? 'active' : ''}`}
+                  onClick={() => changeFile(file.name)}
+                  data-testid={`file-${file.name}`}
+                >
+                  <file.icon size={16} />
+                  <span>{file.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel-section">
+            <div className="panel-title flex items-center gap-2">
+              <Terminal size={14} />
+              <span>DEBUG</span>
+            </div>
+            <div className="debug-controls">
+              <button 
+                className={`debug-btn ${isRunning ? 'active' : ''}`}
+                onClick={handleRunCode}
+                disabled={isRunning}
+                data-testid="debug-run"
+              >
+                <Play size={14} />
+                Run
+              </button>
+              <button 
+                className={`debug-btn ${isPaused ? 'active' : ''}`}
+                onClick={handlePause}
+                data-testid="debug-pause"
+              >
+                <Pause size={14} />
+                Pause
+              </button>
+              <button 
+                className="debug-btn"
+                onClick={handleStepOver}
+                disabled={!isPaused}
+                data-testid="debug-step-over"
+              >
+                <SkipForward size={14} />
+              </button>
+              <button 
+                className="debug-btn"
+                onClick={handleStepInto}
+                disabled={!isPaused}
+                data-testid="debug-step-into"
+              >
+                <CornerDownRight size={14} />
+              </button>
+              <button 
+                className="debug-btn"
+                onClick={handleStepOut}
+                disabled={!isPaused}
+                data-testid="debug-step-out"
+              >
+                <CornerUpLeft size={14} />
+              </button>
+              <button 
+                className="debug-btn"
+                onClick={handleRestart}
+                data-testid="debug-restart"
+              >
+                <RotateCcw size={14} />
+              </button>
+              <button 
+                className="debug-btn"
+                onClick={handleStop}
+                data-testid="debug-stop"
+              >
+                <Square size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="panel-section">
+            <div className="panel-title flex items-center gap-2">
+              <Circle size={14} className="fill-red-500 text-red-500" />
+              <span>BREAKPOINTS</span>
+            </div>
+            <div className="breakpoints-list" data-testid="breakpoints-list">
+              {Array.from(breakpoints).sort((a, b) => a - b).map(line => (
+                <div key={line} className="breakpoint-item">
+                  <Circle size={12} className="fill-red-500 text-red-500" />
+                  <span>{activeFile}:line {line}</span>
+                </div>
+              ))}
+              {breakpoints.size === 0 && (
+                <div className="text-sm text-neutral-500">No breakpoints set</div>
+              )}
+            </div>
+          </div>
+
+          <div className="panel-section">
+            <div className="panel-title flex items-center gap-2">
+              <Eye size={14} />
+              <span>WATCH</span>
+            </div>
+            <div className="watch-list" data-testid="watch-list">
+              {Object.keys(watchedVars).length > 0 ? (
+                Object.entries(watchedVars).map(([key, value]) => (
+                  <div key={key} className="watch-item">
+                    <span className="watch-var">{key}</span>
+                    <span className="watch-value">{JSON.stringify(value)}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-neutral-500">No variables to watch</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Center - Editor */}
+        <div className="ide-editor-container">
+          {/* Tabs */}
+          <div className="ide-tabs" data-testid="editor-tabs">
+            {FILE_STRUCTURE.map((file) => (
+              <button
+                key={file.name}
+                className={`
