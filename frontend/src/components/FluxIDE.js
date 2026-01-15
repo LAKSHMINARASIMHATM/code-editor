@@ -1,48 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
+import io from 'socket.io-client';
 import { 
   Play, Pause, SkipForward, CornerDownRight, CornerUpLeft, 
   RotateCcw, Square, Circle, FileText, FolderOpen, 
   Users, Activity, Zap, Clock, Search, Settings,
   ChevronRight, Eye, Terminal, Code2
 } from 'lucide-react';
-import { Operation, transform, applyOperation, mergeCursor } from '../utils/operationalTransform';
-import { BotUser } from '../utils/botSimulator';
-import { executeCode, extractVariables } from '../utils/codeExecution';
 
-const USER_COLORS = [
-  { color: '#3B82F6', name: 'blue' },
-  { color: '#10B981', name: 'emerald' },
-  { color: '#F59E0B', name: 'amber' },
-  { color: '#EC4899', name: 'pink' },
-  { color: '#8B5CF6', name: 'violet' },
-  { color: '#06B6D4', name: 'cyan' },
-  { color: '#F97316', name: 'orange' },
-  { color: '#EF4444', name: 'red' },
-];
-
-const AVATAR_URLS = [
-  "https://images.unsplash.com/photo-1615843423179-bea071facf96?w=100&h=100&fit=crop",
-  "https://images.unsplash.com/photo-1650913406617-bd9b0ab07d07?w=100&h=100&fit=crop",
-  "https://images.unsplash.com/photo-1648293821367-b39c09679658?w=100&h=100&fit=crop",
-  "https://images.unsplash.com/photo-1740252117027-4275d3f84385?w=100&h=100&fit=crop",
-];
-
-const FILE_STRUCTURE = [
-  { name: 'main.js', language: 'javascript', icon: FileText },
-  { name: 'utils.py', language: 'python', icon: FileText },
-  { name: 'App.tsx', language: 'typescript', icon: FileText },
-  { name: 'styles.css', language: 'css', icon: FileText },
-  { name: 'README.md', language: 'markdown', icon: FileText },
-];
-
-const INITIAL_CODE = {
-  'main.js': `function calculateSum(a, b) {\n  const result = a + b;\n  console.log("Result:", result);\n  return result;\n}\n\nconst numbers = [1, 2, 3, 4, 5];\nconst doubled = numbers.map(n => n * 2);\nconsole.log("Doubled:", doubled);\n\n// Collaborative IDE Demo\n`,
-  'utils.py': `def calculate_sum(a, b):\n    result = a + b\n    print(f"Result: {result}")\n    return result\n\nnumbers = [1, 2, 3, 4, 5]\ndoubled = [n * 2 for n in numbers]\nprint(f"Doubled: {doubled}")\n`,
-  'App.tsx': `import React from 'react';\n\ninterface Props {\n  name: string;\n}\n\nconst App: React.FC<Props> = ({ name }) => {\n  return (\n    <div>\n      <h1>Hello, {name}!</h1>\n    </div>\n  );\n};\n\nexport default App;\n`,
-  'styles.css': `.container {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  min-height: 100vh;\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n}\n`,
-  'README.md': `# Flux IDE\n\nA production-grade collaborative code editor.\n\n## Features\n- Multi-language syntax highlighting\n- Real-time collaboration\n- Intelligent code completion\n- Live debugging\n`,
-};
+const SOCKET_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:8000' 
+  : `https://${window.location.hostname.replace('5000', '8000')}`;
 
 export const FluxIDE = () => {
   const [activeFile, setActiveFile] = useState('main.js');
@@ -60,92 +28,101 @@ export const FluxIDE = () => {
   // Collaboration state
   const [users, setUsers] = useState([]);
   const [remoteCursors, setRemoteCursors] = useState({});
-  const [operations, setOperations] = useState([]);
   const [opsPerSecond, setOpsPerSecond] = useState(0);
   const [sessionLatency, setSessionLatency] = useState(42);
   
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
-  const botUsersRef = useRef([]);
+  const socketRef = useRef(null);
   const opsCountRef = useRef(0);
 
-  // Initialize simulated users
+  // Initialize Socket.IO connection
   useEffect(() => {
-    const simulatedUsers = [
-      { id: 'user-1', name: 'You', avatar: AVATAR_URLS[0], color: USER_COLORS[0], isLocal: true },
-      { id: 'user-2', name: 'Alice Chen', avatar: AVATAR_URLS[1], color: USER_COLORS[1], isTyping: false },
-      { id: 'user-3', name: 'Bob Smith', avatar: AVATAR_URLS[2], color: USER_COLORS[2], isTyping: false },
-      { id: 'user-4', name: 'Carol Wang', avatar: AVATAR_URLS[3], color: USER_COLORS[3], isTyping: false },
-      { id: 'user-5', name: 'Dave Miller', avatar: AVATAR_URLS[0], color: USER_COLORS[4], isTyping: false },
-      { id: 'user-6', name: 'Eve Taylor', avatar: AVATAR_URLS[1], color: USER_COLORS[5], isTyping: false },
-      { id: 'user-7', name: 'Frank Lee', avatar: AVATAR_URLS[2], color: USER_COLORS[6], isTyping: false },
-      { id: 'user-8', name: 'Grace Kim', avatar: AVATAR_URLS[3], color: USER_COLORS[7], isTyping: false },
-    ];
-    
-    setUsers(simulatedUsers);
-    
-    // Initialize remote cursors
-    const cursors = {};
-    simulatedUsers.forEach(user => {
-      if (!user.isLocal) {
-        cursors[user.id] = { line: Math.floor(Math.random() * 10) + 1, column: 0 };
-      }
+    const socket = io(SOCKET_URL, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling']
     });
-    setRemoteCursors(cursors);
-  }, []);
+    socketRef.current = socket;
 
-  // Start bot users for simulation
-  useEffect(() => {
-    if (users.length === 0) return;
+    socket.on('connect', () => {
+      console.log('Connected to collaboration server');
+      socket.emit('join_session', { name: `User-${Math.floor(Math.random() * 1000)}` });
+    });
 
-    const bots = users
-      .filter(user => !user.isLocal)
-      .map(user => {
-        const bot = new BotUser(user, (operation) => {
-          handleBotOperation(operation);
-        });
-        bot.start();
-        return bot;
+    socket.on('session_joined', (data) => {
+      setUsers(data.users);
+    });
+
+    socket.on('user_joined', (user) => {
+      setUsers(prev => [...prev.filter(u => u.id !== user.id), user]);
+    });
+
+    socket.on('user_left', (data) => {
+      setUsers(prev => prev.filter(u => u.id !== data.userId));
+      setRemoteCursors(prev => {
+        const next = { ...prev };
+        delete next[data.userId];
+        return next;
       });
+    });
 
-    botUsersRef.current = bots;
+    socket.on('users_update', (data) => {
+      setUsers(data.users);
+    });
 
-    return () => {
-      bots.forEach(bot => bot.stop());
-    };
-  }, [users]);
-
-  // Handle bot operations
-  const handleBotOperation = useCallback((operation) => {
-    setOperations(prev => [...prev.slice(-100), operation]); // Keep last 100 operations
-    opsCountRef.current += 1;
-
-    if (operation.type === 'cursor') {
+    socket.on('cursor_update', (data) => {
       setRemoteCursors(prev => ({
         ...prev,
-        [operation.userId]: { line: Math.floor(operation.position / 50) + 1, column: operation.position % 50 }
+        [data.userId]: data.cursor
       }));
-      
-      // Update typing status
+    });
+
+    socket.on('typing_update', (data) => {
       setUsers(prev => prev.map(u => 
-        u.id === operation.userId ? { ...u, isTyping: Math.random() > 0.7 } : u
+        u.id === data.userId ? { ...u, isTyping: data.isTyping } : u
       ));
-    } else {
-      // Apply operation to document (simulated - not actually changing the editor)
-      // In a real app, this would update the editor content through OT
+    });
+
+    socket.on('code_update', (data) => {
+      if (data.file === activeFile) {
+        setFiles(prev => ({ ...prev, [data.file]: data.content }));
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [activeFile]);
+
+  // Sync cursor position
+  useEffect(() => {
+    if (!editorRef.current || !socketRef.current) return;
+
+    const disposable = editorRef.current.onDidChangeCursorPosition((e) => {
+      socketRef.current.emit('cursor_move', {
+        cursor: { line: e.position.lineNumber, column: e.position.column }
+      });
+    });
+
+    return () => disposable.dispose();
+  }, [activeFile]);
+
+  const handleEditorChange = (value) => {
+    setFiles(prev => ({ ...prev, [activeFile]: value }));
+    if (socketRef.current) {
+      socketRef.current.emit('code_change', {
+        file: activeFile,
+        content: value,
+        operation: 'update'
+      });
+      socketRef.current.emit('typing_status', { isTyping: true });
       
-      // Update typing status
-      setUsers(prev => prev.map(u => 
-        u.id === operation.userId ? { ...u, isTyping: true } : u
-      ));
-      
-      setTimeout(() => {
-        setUsers(prev => prev.map(u => 
-          u.id === operation.userId ? { ...u, isTyping: false } : u
-        ));
+      clearTimeout(window.typingTimeout);
+      window.typingTimeout = setTimeout(() => {
+        socketRef.current.emit('typing_status', { isTyping: false });
       }, 1000);
     }
-  }, []);
+  };
 
   // Calculate ops per second
   useEffect(() => {
@@ -467,7 +444,7 @@ export const FluxIDE = () => {
               height="100%"
               language={language}
               value={files[activeFile]}
-              onChange={(value) => setFiles(prev => ({ ...prev, [activeFile]: value }))}
+              onChange={handleEditorChange}
               onMount={handleEditorDidMount}
               options={{
                 fontSize: 14,

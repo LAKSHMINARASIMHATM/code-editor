@@ -50,75 +50,26 @@ user_colors = [
     {'color': '#EF4444', 'name': 'red'},
 ]
 
-
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# WebSocket event handlers
-@sio.event
-async def connect(sid, environ):
-    logger.info(f"Client connected: {sid}")
-    
-@sio.event
-async def disconnect(sid):
-    logger.info(f"Client disconnected: {sid}")
-    if sid in active_users:
-        user_data = active_users[sid]
-        del active_users[sid]
-        # Notify other users
-        await sio.emit('user_left', {
-            'userId': sid,
-            'userName': user_data['name']
-        }, skip_sid=sid)
-        # Broadcast updated user list
-        await broadcast_users()
+def get_avatar_url(index):
+    AVATAR_URLS = [
+        "https://images.unsplash.com/photo-1615843423179-bea071facf96?w=100&h=100&fit=crop",
+        "https://images.unsplash.com/photo-1650913406617-bd9b0ab07d07?w=100&h=100&fit=crop",
+        "https://images.unsplash.com/photo-1648293821367-b39c09679658?w=100&h=100&fit=crop",
+        "https://images.unsplash.com/photo-1740252117027-4275d3f84385?w=100&h=100&fit=crop",
+    ]
+    return AVATAR_URLS[index % len(AVATAR_URLS)]
 
 @sio.event
 async def join_session(sid, data):
     user_name = data.get('name', f'User-{len(active_users) + 1}')
     color = user_colors[len(active_users) % len(user_colors)]
+    avatar = get_avatar_url(len(active_users))
     
     active_users[sid] = {
         'id': sid,
         'name': user_name,
         'color': color,
+        'avatar': avatar,
         'cursor': {'line': 1, 'column': 0},
         'isTyping': False
     }
