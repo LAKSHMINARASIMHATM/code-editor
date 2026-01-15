@@ -29,9 +29,14 @@ const INITIAL_CODE = {
   'README.md': `# Flux IDE\n\nA production-grade collaborative code editor.\n\n## Features\n- Multi-language syntax highlighting\n- Real-time collaboration\n- Intelligent code completion\n- Live debugging\n`,
 };
 
+import { Terminal as XTerm } from 'xterm';
+import { FitAddon } from 'xterm-addon-fit';
+import 'xterm/css/xterm.css';
+
 export const FluxIDE = () => {
   const [activeFile, setActiveFile] = useState('main.js');
   const [files, setFiles] = useState(INITIAL_CODE);
+  const [fileList, setFileList] = useState(FILE_STRUCTURE);
   const [language, setLanguage] = useState('javascript');
   const [breakpoints, setBreakpoints] = useState(new Set([2]));
   const [consoleOutput, setConsoleOutput] = useState([
@@ -41,6 +46,86 @@ export const FluxIDE = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [executionLine, setExecutionLine] = useState(null);
+  
+  const fileInputRef = useRef(null);
+  const terminalRef = useRef(null);
+  const xtermRef = useRef(null);
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target.result;
+      const fileName = file.name;
+      
+      let lang = 'javascript';
+      if (fileName.endsWith('.py')) lang = 'python';
+      else if (fileName.endsWith('.tsx') || fileName.endsWith('.ts')) lang = 'typescript';
+      else if (fileName.endsWith('.css')) lang = 'css';
+      else if (fileName.endsWith('.md')) lang = 'markdown';
+      else if (fileName.endsWith('.html')) lang = 'html';
+      else if (fileName.endsWith('.json')) lang = 'json';
+
+      setFiles(prev => ({ ...prev, [fileName]: content }));
+      setFileList(prev => {
+        if (prev.find(f => f.name === fileName)) return prev;
+        return [...prev, { name: fileName, language: lang, icon: FileText }];
+      });
+      setActiveFile(fileName);
+      setLanguage(lang);
+      setConsoleOutput(prev => [...prev, { type: 'success', message: `Imported local file: ${fileName}`, timestamp: Date.now() }]);
+    };
+    reader.readAsText(file);
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const changeFile = (fileName) => {
+    setActiveFile(fileName);
+    const file = fileList.find(f => f.name === fileName);
+    if (file) {
+      setLanguage(file.language);
+    }
+  };
+
+  useEffect(() => {
+    if (!terminalRef.current || !socketRef.current) return;
+
+    const term = new XTerm({
+      theme: {
+        background: '#0a0a0a',
+        foreground: '#E5E5E5',
+        cursor: '#F97316',
+      },
+      fontFamily: 'JetBrains Mono, monospace',
+      fontSize: 14,
+    });
+    
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(terminalRef.current);
+    fitAddon.fit();
+    xtermRef.current = term;
+
+    term.onData(data => {
+      socketRef.current.emit('terminal_input', { input: data });
+    });
+
+    const handleOutput = (data) => {
+      term.write(data.output);
+    };
+
+    socketRef.current.on('terminal_output', handleOutput);
+
+    return () => {
+      socketRef.current.off('terminal_output', handleOutput);
+      term.dispose();
+    };
+  }, [socketRef.current]);
   
   const [fileList, setFileList] = useState(FILE_STRUCTURE);
   const fileInputRef = useRef(null);
@@ -624,16 +709,7 @@ export const FluxIDE = () => {
               <Terminal size={14} />
               <span>CONSOLE OUTPUT</span>
             </div>
-            <div className="console-output" data-testid="console-output">
-              {consoleOutput.map((log, index) => (
-                <div key={index} className={`console-line ${log.type}`}>
-                  <span className="text-neutral-600">{formatTime(log.timestamp)}</span>
-                  <span>{log.message}</span>
-                </div>
-              ))}
-              {consoleOutput.length === 0 && (
-                <div className="text-neutral-500">No output yet. Run your code to see results.</div>
-              )}
+            <div className="console-output" data-testid="console-output" ref={terminalRef} style={{ height: '200px' }}>
             </div>
           </div>
         </div>

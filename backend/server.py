@@ -62,6 +62,34 @@ def get_avatar_url(index):
     ]
     return AVATAR_URLS[index % len(AVATAR_URLS)]
 
+import pty
+import termios
+import struct
+import fcntl
+
+# Store active terminal sessions
+terminal_sessions = {}
+
+@sio.event
+async def terminal_input(sid, data):
+    if sid in terminal_sessions:
+        master_fd = terminal_sessions[sid]['master_fd']
+        os.write(master_fd, data.get('input', '').encode())
+
+async def read_terminal_output(sid, master_fd):
+    while sid in terminal_sessions:
+        try:
+            # Use non-blocking read
+            await asyncio.sleep(0.01)
+            output = os.read(master_fd, 1024).decode(errors='replace')
+            if output:
+                await sio.emit('terminal_output', {'output': output}, to=sid)
+        except OSError:
+            break
+    
+    if sid in terminal_sessions:
+        del terminal_sessions[sid]
+
 @sio.event
 async def join_session(sid, data):
     user_name = data.get('name', f'User-{len(active_users) + 1}')
@@ -77,6 +105,23 @@ async def join_session(sid, data):
         'isTyping': False
     }
     
+    # Initialize PTY for this session
+    master_fd, slave_fd = pty.openpty()
+    p = asyncio.create_subprocess_exec(
+        'bash',
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        preexec_fn=os.setsid
+    )
+    
+    terminal_sessions[sid] = {
+        'master_fd': master_fd,
+        'process': await p
+    }
+    
+    asyncio.create_task(read_terminal_output(sid, master_fd))
+    
     # Send current users to the new user
     await sio.emit('session_joined', {
         'userId': sid,
@@ -90,6 +135,18 @@ async def join_session(sid, data):
     await sio.emit('user_joined', active_users[sid], skip_sid=sid)
     
     logger.info(f"User joined: {user_name} ({sid})")
+
+@sio.event
+async def disconnect(sid):
+    if sid in active_users:
+        user = active_users.pop(sid)
+        await sio.emit('user_left', {'userId': sid})
+        logger.info(f"User disconnected: {user['name']} ({sid})")
+    
+    if sid in terminal_sessions:
+        session = terminal_sessions.pop(sid)
+        session['process'].terminate()
+        os.close(session['master_fd'])
 
 @sio.event
 async def cursor_move(sid, data):
