@@ -153,6 +153,42 @@ export const FluxIDE = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current) return;
+
+    const decorations = [];
+    
+    // Breakpoint decorations
+    breakpoints.forEach(line => {
+      decorations.push({
+        range: new monacoRef.current.Range(line, 1, line, 1),
+        options: {
+          isWholeLine: false,
+          glyphMarginClassName: 'breakpoint-decoration',
+          glyphMarginHoverMessage: { value: 'Breakpoint' }
+        }
+      });
+    });
+
+    // Execution line decoration
+    if (executionLine) {
+      decorations.push({
+        range: new monacoRef.current.Range(executionLine, 1, executionLine, 1),
+        options: {
+          isWholeLine: true,
+          className: 'execution-line-decoration',
+          glyphMarginClassName: 'execution-point-decoration'
+        }
+      });
+    }
+
+    const oldDecorations = editorRef.current.getModel()._decorations || [];
+    editorRef.current.getModel()._decorations = editorRef.current.deltaDecorations(
+      oldDecorations,
+      decorations
+    );
+  }, [breakpoints, executionLine, activeFile]);
+
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
@@ -162,6 +198,15 @@ export const FluxIDE = () => {
       if (e.target.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS) {
         const lineNumber = e.target.position.lineNumber;
         toggleBreakpoint(lineNumber);
+      }
+    });
+
+    // Handle watch variable addition via selection
+    editor.onContextMenu((e) => {
+      const selection = editor.getSelection();
+      if (selection && !selection.isEmpty()) {
+        const text = editor.getModel().getValueInRange(selection);
+        setWatchedVars(prev => ({ ...prev, [text]: 'Evaluating...' }));
       }
     });
 
@@ -229,31 +274,69 @@ export const FluxIDE = () => {
   };
 
   const handlePause = () => {
-    setIsPaused(!isPaused);
-    if (!isPaused) {
-      // Find first breakpoint
-      const firstBreakpoint = Array.from(breakpoints).sort((a, b) => a - b)[0];
-      setExecutionLine(firstBreakpoint || 1);
+    const nextPaused = !isPaused;
+    setIsPaused(nextPaused);
+    
+    if (nextPaused) {
+      // Find first breakpoint or start at line 1
+      const sortedBreakpoints = Array.from(breakpoints).sort((a, b) => a - b);
+      const startLine = sortedBreakpoints.length > 0 ? sortedBreakpoints[0] : 1;
+      setExecutionLine(startLine);
+      
+      // Initial variable extraction
+      const code = files[activeFile];
+      const vars = extractVariables(code, startLine);
+      setWatchedVars(vars);
+      
+      setConsoleOutput(prev => [
+        ...prev, 
+        { type: 'info', message: `Paused at line ${startLine}`, timestamp: Date.now() }
+      ]);
     } else {
       setExecutionLine(null);
+      setConsoleOutput(prev => [
+        ...prev, 
+        { type: 'info', message: 'Resumed execution', timestamp: Date.now() }
+      ]);
     }
   };
 
   const handleStepOver = () => {
     if (executionLine) {
-      setExecutionLine(prev => prev + 1);
+      const nextLine = executionLine + 1;
+      setExecutionLine(nextLine);
+      
+      // Update watch variables for the new line
+      const code = files[activeFile];
+      const vars = extractVariables(code, nextLine);
+      setWatchedVars(vars);
+      
+      setConsoleOutput(prev => [
+        ...prev, 
+        { type: 'info', message: `Stepped over to line ${nextLine}`, timestamp: Date.now() }
+      ]);
     }
   };
 
   const handleStepInto = () => {
-    if (executionLine) {
-      setExecutionLine(prev => prev + 1);
-    }
+    // Simulated step into (moves to next line and updates watch)
+    handleStepOver();
   };
 
   const handleStepOut = () => {
     if (executionLine) {
-      setExecutionLine(prev => Math.min(prev + 3, files[activeFile].split('\n').length));
+      const lines = files[activeFile].split('\n').length;
+      const nextLine = Math.min(executionLine + 5, lines);
+      setExecutionLine(nextLine);
+      
+      const code = files[activeFile];
+      const vars = extractVariables(code, nextLine);
+      setWatchedVars(vars);
+      
+      setConsoleOutput(prev => [
+        ...prev, 
+        { type: 'info', message: `Stepped out to line ${nextLine}`, timestamp: Date.now() }
+      ]);
     }
   };
 
@@ -294,10 +377,10 @@ export const FluxIDE = () => {
             <h1 className="text-xl font-bold" style={{ fontFamily: 'Chivo' }}>Flux IDE</h1>
           </div>
           <nav className="flex gap-4 text-sm text-neutral-400">
-            <button className="hover:text-white transition-colors" data-testid="menu-file">File</button>
-            <button className="hover:text-white transition-colors" data-testid="menu-edit">Edit</button>
-            <button className="hover:text-white transition-colors" data-testid="menu-view">View</button>
-            <button className="hover:text-white transition-colors" data-testid="menu-debug">Debug</button>
+            <button className="hover:text-white transition-colors" data-testid="menu-file" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'File menu opened', timestamp: Date.now() }])}>File</button>
+            <button className="hover:text-white transition-colors" data-testid="menu-edit" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'Edit menu opened', timestamp: Date.now() }])}>Edit</button>
+            <button className="hover:text-white transition-colors" data-testid="menu-view" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'View menu opened', timestamp: Date.now() }])}>View</button>
+            <button className="hover:text-white transition-colors" data-testid="menu-debug" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'Debug menu opened', timestamp: Date.now() }])}>Debug</button>
           </nav>
         </div>
         <div className="flex items-center gap-4">
@@ -305,7 +388,7 @@ export const FluxIDE = () => {
             <Activity size={16} className="text-emerald-500" />
             <span data-testid="session-users">{users.length}/100 users</span>
           </div>
-          <button className="hover:text-white transition-colors" data-testid="settings-btn">
+          <button className="hover:text-white transition-colors" data-testid="settings-btn" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'Settings panel opened', timestamp: Date.now() }])}>
             <Settings size={18} />
           </button>
         </div>
