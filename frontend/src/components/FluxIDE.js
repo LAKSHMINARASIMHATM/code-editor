@@ -236,11 +236,17 @@ export const FluxIDE = () => {
 
     const resizeObserver = new ResizeObserver(() => {
       if (terminalRef.current && terminalRef.current.clientWidth > 0 && terminalRef.current.clientHeight > 0) {
-        try {
-          fitAddon.fit();
-        } catch (e) {
-          console.warn('Xterm fit failed', e);
-        }
+        requestAnimationFrame(() => {
+          if (xtermRef.current && fitAddonRef.current) {
+            try {
+              if (xtermRef.current.element && xtermRef.current.textarea) {
+                fitAddonRef.current.fit();
+              }
+            } catch (e) {
+              console.warn('Xterm fit failed', e);
+            }
+          }
+        });
       }
     });
     
