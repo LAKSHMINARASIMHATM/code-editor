@@ -22,38 +22,33 @@ const Terminal = ({ onData, socket }) => {
       allowProposedApi: true
     });
     
+    // Safety Wrapper for FitAddon
     const fitAddon = new FitAddon();
+    const safeFit = () => {
+      if (!term.element || !term._core?._charSizeService?.hasValidSize) return;
+      try {
+        fitAddon.fit();
+      } catch (e) {
+        // Silent catch for xterm internal dimensions errors
+      }
+    };
+
     term.loadAddon(fitAddon);
     
     term.open(terminalRef.current);
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Use a delayed initial fit to ensure the container is fully rendered
-    const timeoutId = setTimeout(() => {
-      if (fitAddonRef.current && xtermRef.current?.element) {
-        try {
-          fitAddonRef.current.fit();
-        } catch (e) {
-          console.warn('Initial terminal fit failed', e);
-        }
-      }
-    }, 100);
+    // Use a series of delayed fits to ensure the container is fully rendered
+    const timers = [
+      setTimeout(safeFit, 50),
+      setTimeout(safeFit, 200),
+      setTimeout(safeFit, 500)
+    ];
 
     const resizeObserver = new ResizeObserver(() => {
       if (!terminalRef.current || terminalRef.current.clientWidth === 0 || terminalRef.current.clientHeight === 0) return;
-
-      requestAnimationFrame(() => {
-        if (!xtermRef.current || !fitAddonRef.current) return;
-        try {
-          // Terminal must have internal geometry ready before fit()
-          if (xtermRef.current.element && xtermRef.current._core?._charSizeService?.hasValidSize) {
-            fitAddonRef.current.fit();
-          }
-        } catch (e) {
-          // Ignore transient resize errors
-        }
-      });
+      requestAnimationFrame(safeFit);
     });
     
     resizeObserver.observe(terminalRef.current);
@@ -73,7 +68,7 @@ const Terminal = ({ onData, socket }) => {
     }
 
     return () => {
-      clearTimeout(timeoutId);
+      timers.forEach(clearTimeout);
       resizeObserver.disconnect();
       dataDisposable.dispose();
       if (socket) {
