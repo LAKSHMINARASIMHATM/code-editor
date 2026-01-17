@@ -506,7 +506,7 @@ export const FluxIDE = () => {
                   {menu}
                 </button>
                 {activeMenu === menu && (
-                  <div className="absolute top-full left-0 mt-2 w-56 rounded-md border border-white/10 bg-[#0a0a0a] py-1 shadow-2xl z-40">
+                  <div className="menu-dropdown">
                     {items.map((item) => (
                       <button
                         key={item.label}
