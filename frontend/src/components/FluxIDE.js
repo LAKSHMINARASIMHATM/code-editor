@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import io from 'socket.io-client';
 import { executeCode, extractVariables } from '../utils/codeExecution';
 import { 
   Play, Pause, SkipForward, CornerDownRight, CornerUpLeft, 
   RotateCcw, Square, Circle, FileText, FolderOpen, 
-  Users, Activity, Zap, Clock, Search, Settings,
-  ChevronRight, Eye, Terminal, Code2, Upload
+  Users, Activity, Zap, Clock, Settings,
+  Terminal, Code2, Upload, Download, Save, Plus, Scissors, Copy, Paste, Undo, Redo,
+  Layout, Monitor, Maximize, Bug, PlayCircle
 } from 'lucide-react';
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
@@ -46,6 +47,16 @@ export const FluxIDE = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [executionLine, setExecutionLine] = useState(null);
   
+  // Menu and Modal States
+  const [activeMenu, setActiveMenu] = useState(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState({
+    fontSize: 14,
+    theme: 'flux-dark',
+    minimap: true,
+    wordWrap: 'on'
+  });
+
   const fileInputRef = useRef(null);
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
@@ -88,10 +99,12 @@ export const FluxIDE = () => {
       setConsoleOutput(prev => [...prev, { type: 'success', message: `Imported local file: ${fileName}`, timestamp: Date.now() }]);
     };
     reader.readAsText(file);
+    setActiveMenu(null);
   };
 
   const triggerFileUpload = () => {
     fileInputRef.current?.click();
+    setActiveMenu(null);
   };
 
   const changeFile = (fileName) => {
@@ -100,6 +113,45 @@ export const FluxIDE = () => {
     if (file) {
       setLanguage(file.language);
     }
+  };
+
+  // Menu Handlers
+  const menuItems = {
+    File: [
+      { label: 'New File', icon: Plus, action: () => {
+        const name = `file_${fileList.length + 1}.js`;
+        setFiles(prev => ({ ...prev, [name]: '// New file\n' }));
+        setFileList(prev => [...prev, { name, language: 'javascript', icon: FileText }]);
+        setActiveFile(name);
+      }},
+      { label: 'Open File', icon: FolderOpen, action: triggerFileUpload },
+      { label: 'Save', icon: Save, action: () => setConsoleOutput(prev => [...prev, { type: 'success', message: `Saved ${activeFile}`, timestamp: Date.now() }]) },
+      { label: 'Download', icon: Download, action: () => {
+        const blob = new Blob([files[activeFile]], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = activeFile;
+        a.click();
+      }}
+    ],
+    Edit: [
+      { label: 'Undo', icon: Undo, action: () => editorRef.current?.trigger('keyboard', 'undo', {}) },
+      { label: 'Redo', icon: Redo, action: () => editorRef.current?.trigger('keyboard', 'redo', {}) },
+      { label: 'Cut', icon: Scissors, action: () => editorRef.current?.trigger('keyboard', 'editor.action.clipboardCutAction', {}) },
+      { label: 'Copy', icon: Copy, action: () => editorRef.current?.trigger('keyboard', 'editor.action.clipboardCopyAction', {}) },
+      { label: 'Paste', icon: Paste, action: () => editorRef.current?.trigger('keyboard', 'editor.action.clipboardPasteAction', {}) }
+    ],
+    View: [
+      { label: 'Toggle Minimap', icon: Layout, action: () => setSettings(s => ({ ...s, minimap: !s.minimap })) },
+      { label: 'Full Screen', icon: Maximize, action: () => document.documentElement.requestFullscreen() },
+      { label: 'Presentation Mode', icon: Monitor, action: () => setSettings(s => ({ ...s, fontSize: s.fontSize === 14 ? 20 : 14 })) }
+    ],
+    Debug: [
+      { label: 'Start Debugging', icon: Bug, action: () => handleRunCode() },
+      { label: 'Run Without Debugging', icon: PlayCircle, action: () => handleRunCode() },
+      { label: 'Stop Debugging', icon: Square, action: () => handleStop() }
+    ]
   };
 
   // Initialize Socket.IO connection
@@ -178,12 +230,10 @@ export const FluxIDE = () => {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     
-    // We open first, but don't fit until the container has actual dimensions
     term.open(terminalRef.current);
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Use ResizeObserver for robust dimension management
     const resizeObserver = new ResizeObserver(() => {
       if (terminalRef.current && terminalRef.current.clientWidth > 0 && terminalRef.current.clientHeight > 0) {
         try {
@@ -252,8 +302,6 @@ export const FluxIDE = () => {
     const interval = setInterval(() => {
       setOpsPerSecond(opsCountRef.current);
       opsCountRef.current = 0;
-      
-      // Simulate latency fluctuation
       setSessionLatency(prev => Math.max(20, Math.min(100, prev + (Math.random() - 0.5) * 10)));
     }, 1000);
 
@@ -264,8 +312,6 @@ export const FluxIDE = () => {
     if (!editorRef.current || !monacoRef.current) return;
 
     const decorations = [];
-    
-    // Breakpoint decorations
     breakpoints.forEach(line => {
       decorations.push({
         range: new monacoRef.current.Range(line, 1, line, 1),
@@ -277,7 +323,6 @@ export const FluxIDE = () => {
       });
     });
 
-    // Execution line decoration
     if (executionLine) {
       decorations.push({
         range: new monacoRef.current.Range(executionLine, 1, executionLine, 1),
@@ -300,7 +345,6 @@ export const FluxIDE = () => {
     editorRef.current = editor;
     monacoRef.current = monaco;
 
-    // Add breakpoint click handler
     editor.onMouseDown((e) => {
       if (e.target.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS) {
         const lineNumber = e.target.position.lineNumber;
@@ -308,7 +352,6 @@ export const FluxIDE = () => {
       }
     });
 
-    // Handle watch variable addition via selection
     editor.onContextMenu((e) => {
       const selection = editor.getSelection();
       if (selection && !selection.isEmpty()) {
@@ -317,7 +360,6 @@ export const FluxIDE = () => {
       }
     });
 
-    // Configure editor theme
     monaco.editor.defineTheme('flux-dark', {
       base: 'vs-dark',
       inherit: true,
@@ -358,92 +400,37 @@ export const FluxIDE = () => {
     setIsRunning(true);
     setIsPaused(false);
     setExecutionLine(null);
-    
     const code = files[activeFile];
     const result = executeCode(code, language);
-    
-    const newOutput = [
-      { type: 'info', message: `Running ${activeFile}...`, timestamp: Date.now() },
-      ...result.output.map(o => ({ ...o, timestamp: Date.now() })),
-      ...result.errors.map(e => ({ ...e, type: 'error', timestamp: Date.now() })),
-    ];
-    
-    setConsoleOutput(prev => [...prev, ...newOutput]);
-    
-    // Extract variables
+    setConsoleOutput(prev => [...prev, { type: 'info', message: `Running ${activeFile}...`, timestamp: Date.now() }, ...result.output.map(o => ({ ...o, timestamp: Date.now() }))]);
     const vars = extractVariables(code, 1);
     setWatchedVars(vars);
-    
     setTimeout(() => {
       setIsRunning(false);
       setConsoleOutput(prev => [...prev, { type: 'success', message: 'Execution completed', timestamp: Date.now() }]);
     }, 1000);
+    setActiveMenu(null);
+  };
+
+  const handleStop = () => {
+    setIsRunning(false);
+    setIsPaused(false);
+    setExecutionLine(null);
+    setActiveMenu(null);
   };
 
   const handlePause = () => {
     const nextPaused = !isPaused;
     setIsPaused(nextPaused);
-    
     if (nextPaused) {
-      // Find first breakpoint or start at line 1
       const sortedBreakpoints = Array.from(breakpoints).sort((a, b) => a - b);
       const startLine = sortedBreakpoints.length > 0 ? sortedBreakpoints[0] : 1;
       setExecutionLine(startLine);
-      
-      // Initial variable extraction
       const code = files[activeFile];
       const vars = extractVariables(code, startLine);
       setWatchedVars(vars);
-      
-      setConsoleOutput(prev => [
-        ...prev, 
-        { type: 'info', message: `Paused at line ${startLine}`, timestamp: Date.now() }
-      ]);
     } else {
       setExecutionLine(null);
-      setConsoleOutput(prev => [
-        ...prev, 
-        { type: 'info', message: 'Resumed execution', timestamp: Date.now() }
-      ]);
-    }
-  };
-
-  const handleStepOver = () => {
-    if (executionLine) {
-      const nextLine = executionLine + 1;
-      setExecutionLine(nextLine);
-      
-      // Update watch variables for the new line
-      const code = files[activeFile];
-      const vars = extractVariables(code, nextLine);
-      setWatchedVars(vars);
-      
-      setConsoleOutput(prev => [
-        ...prev, 
-        { type: 'info', message: `Stepped over to line ${nextLine}`, timestamp: Date.now() }
-      ]);
-    }
-  };
-
-  const handleStepInto = () => {
-    // Simulated step into (moves to next line and updates watch)
-    handleStepOver();
-  };
-
-  const handleStepOut = () => {
-    if (executionLine) {
-      const lines = files[activeFile].split('\n').length;
-      const nextLine = Math.min(executionLine + 5, lines);
-      setExecutionLine(nextLine);
-      
-      const code = files[activeFile];
-      const vars = extractVariables(code, nextLine);
-      setWatchedVars(vars);
-      
-      setConsoleOutput(prev => [
-        ...prev, 
-        { type: 'info', message: `Stepped out to line ${nextLine}`, timestamp: Date.now() }
-      ]);
     }
   };
 
@@ -455,19 +442,53 @@ export const FluxIDE = () => {
     setWatchedVars({});
   };
 
-  const handleStop = () => {
-    setIsRunning(false);
-    setIsPaused(false);
-    setExecutionLine(null);
-  };
-
-  const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
+  const handleStepOver = () => {
+    if (executionLine) {
+      const nextLine = executionLine + 1;
+      setExecutionLine(nextLine);
+      const code = files[activeFile];
+      const vars = extractVariables(code, nextLine);
+      setWatchedVars(vars);
+    }
   };
 
   return (
     <div className="flux-ide" data-testid="flux-ide">
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="w-[400px] rounded-lg border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl">
+            <h2 className="mb-4 text-xl font-bold text-orange-500">IDE Settings</h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-neutral-400">Font Size</span>
+                <input 
+                  type="number" 
+                  className="w-20 rounded bg-white/5 border border-white/10 p-1 text-white"
+                  value={settings.fontSize}
+                  onChange={(e) => setSettings(s => ({ ...s, fontSize: parseInt(e.target.value) }))}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-neutral-400">Minimap</span>
+                <button 
+                  onClick={() => setSettings(s => ({ ...s, minimap: !s.minimap }))}
+                  className={`w-12 h-6 rounded-full transition-colors ${settings.minimap ? 'bg-orange-500' : 'bg-neutral-800'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${settings.minimap ? 'translate-x-7' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
+            <button 
+              onClick={() => setIsSettingsOpen(false)}
+              className="mt-6 w-full rounded bg-orange-500 py-2 font-bold text-white hover:bg-orange-600"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="ide-header" data-testid="ide-header">
         <div className="flex items-center gap-4">
@@ -475,11 +496,34 @@ export const FluxIDE = () => {
             <Code2 className="text-orange-500" size={24} />
             <h1 className="text-xl font-bold" style={{ fontFamily: 'Chivo' }}>Flux IDE</h1>
           </div>
-          <nav className="flex gap-4 text-sm text-neutral-400">
-            <button className="hover:text-white transition-colors" data-testid="menu-file" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'File menu opened', timestamp: Date.now() }])}>File</button>
-            <button className="hover:text-white transition-colors" data-testid="menu-edit" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'Edit menu opened', timestamp: Date.now() }])}>Edit</button>
-            <button className="hover:text-white transition-colors" data-testid="menu-view" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'View menu opened', timestamp: Date.now() }])}>View</button>
-            <button className="hover:text-white transition-colors" data-testid="menu-debug" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'Debug menu opened', timestamp: Date.now() }])}>Debug</button>
+          <nav className="flex gap-4 text-sm text-neutral-400 relative">
+            {Object.entries(menuItems).map(([menu, items]) => (
+              <div key={menu} className="relative">
+                <button 
+                  className={`hover:text-white transition-colors ${activeMenu === menu ? 'text-white' : ''}`}
+                  onClick={() => setActiveMenu(activeMenu === menu ? null : menu)}
+                >
+                  {menu}
+                </button>
+                {activeMenu === menu && (
+                  <div className="absolute top-full left-0 mt-2 w-56 rounded-md border border-white/10 bg-[#0a0a0a] py-1 shadow-2xl z-40">
+                    {items.map((item) => (
+                      <button
+                        key={item.label}
+                        className="flex w-full items-center gap-3 px-4 py-2 text-left text-neutral-300 hover:bg-white/5 hover:text-orange-500 transition-colors"
+                        onClick={() => {
+                          item.action();
+                          setActiveMenu(null);
+                        }}
+                      >
+                        <item.icon size={14} />
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </nav>
         </div>
         <div className="flex items-center gap-4">
@@ -487,7 +531,10 @@ export const FluxIDE = () => {
             <Activity size={16} className="text-emerald-500" />
             <span data-testid="session-users">{users.length}/100 users</span>
           </div>
-          <button className="hover:text-white transition-colors" data-testid="settings-btn" onClick={() => setConsoleOutput(prev => [...prev, { type: 'info', message: 'Settings panel opened', timestamp: Date.now() }])}>
+          <button 
+            className="hover:text-white transition-colors" 
+            onClick={() => setIsSettingsOpen(true)}
+          >
             <Settings size={18} />
           </button>
         </div>
@@ -495,7 +542,7 @@ export const FluxIDE = () => {
 
       {/* Main Layout */}
       <div className="ide-main">
-        {/* Left Sidebar - File Explorer */}
+        {/* Left Sidebar */}
         <div className="ide-sidebar" data-testid="file-sidebar">
           <div className="panel-section">
             <div className="panel-title flex items-center gap-2">
@@ -503,156 +550,48 @@ export const FluxIDE = () => {
               <span>FILES</span>
             </div>
             <div className="file-tree">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                style={{ display: 'none' }}
-                accept=".js,.py,.tsx,.ts,.css,.md,.html,.json"
-              />
-              <button
-                className="file-item w-full flex items-center gap-2 mb-2 p-2 rounded hover:bg-white/5 text-orange-500 border border-orange-500/30 transition-colors"
-                onClick={triggerFileUpload}
-                data-testid="import-file-btn"
-              >
+              <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} accept=".js,.py,.tsx,.ts,.css,.md,.html,.json" />
+              <button className="file-item w-full flex items-center gap-2 mb-2 p-2 rounded hover:bg-white/5 text-orange-500 border border-orange-500/30 transition-colors" onClick={triggerFileUpload}>
                 <Upload size={16} />
                 <span>Import Local File</span>
               </button>
               {fileList.map((file) => (
-                <div
-                  key={file.name}
-                  className={`file-item ${activeFile === file.name ? 'active' : ''}`}
-                  onClick={() => changeFile(file.name)}
-                  data-testid={`file-${file.name}`}
-                >
+                <div key={file.name} className={`file-item ${activeFile === file.name ? 'active' : ''}`} onClick={() => changeFile(file.name)}>
                   <file.icon size={16} />
                   <span>{file.name}</span>
                 </div>
               ))}
             </div>
           </div>
-
           <div className="panel-section">
             <div className="panel-title flex items-center gap-2">
               <Terminal size={14} />
               <span>DEBUG</span>
             </div>
             <div className="debug-controls">
-              <button 
-                className={`debug-btn ${isRunning ? 'active' : ''}`}
-                onClick={handleRunCode}
-                disabled={isRunning}
-                data-testid="debug-run"
-              >
-                <Play size={14} />
-                Run
-              </button>
-              <button 
-                className={`debug-btn ${isPaused ? 'active' : ''}`}
-                onClick={handlePause}
-                data-testid="debug-pause"
-              >
-                <Pause size={14} />
-                Pause
-              </button>
-              <button 
-                className="debug-btn"
-                onClick={handleStepOver}
-                disabled={!isPaused}
-                data-testid="debug-step-over"
-              >
-                <SkipForward size={14} />
-              </button>
-              <button 
-                className="debug-btn"
-                onClick={handleStepInto}
-                disabled={!isPaused}
-                data-testid="debug-step-into"
-              >
-                <CornerDownRight size={14} />
-              </button>
-              <button 
-                className="debug-btn"
-                onClick={handleStepOut}
-                disabled={!isPaused}
-                data-testid="debug-step-out"
-              >
-                <CornerUpLeft size={14} />
-              </button>
-              <button 
-                className="debug-btn"
-                onClick={handleRestart}
-                data-testid="debug-restart"
-              >
-                <RotateCcw size={14} />
-              </button>
-              <button 
-                className="debug-btn"
-                onClick={handleStop}
-                data-testid="debug-stop"
-              >
-                <Square size={14} />
-              </button>
+              <button className={`debug-btn ${isRunning ? 'active' : ''}`} onClick={handleRunCode} disabled={isRunning}><Play size={14} /></button>
+              <button className={`debug-btn ${isPaused ? 'active' : ''}`} onClick={handlePause}><Pause size={14} /></button>
+              <button className="debug-btn" onClick={handleStepOver} disabled={!isPaused}><SkipForward size={14} /></button>
+              <button className="debug-btn" onClick={handleRestart}><RotateCcw size={14} /></button>
+              <button className="debug-btn" onClick={handleStop}><Square size={14} /></button>
             </div>
           </div>
-
           <div className="panel-section">
-            <div className="panel-title flex items-center gap-2">
-              <Circle size={14} className="fill-red-500 text-red-500" />
-              <span>BREAKPOINTS</span>
-            </div>
-            <div className="breakpoints-list" data-testid="breakpoints-list">
-              {Array.from(breakpoints).sort((a, b) => a - b).map(line => (
-                <div key={line} className="breakpoint-item">
-                  <Circle size={12} className="fill-red-500 text-red-500" />
-                  <span>{activeFile}:line {line}</span>
-                </div>
-              ))}
-              {breakpoints.size === 0 && (
-                <div className="text-sm text-neutral-500">No breakpoints set</div>
-              )}
-            </div>
-          </div>
-
-          <div className="panel-section">
-            <div className="panel-title flex items-center gap-2">
-              <Eye size={14} />
-              <span>WATCH</span>
-            </div>
-            <div className="watch-list" data-testid="watch-list">
-              {Object.keys(watchedVars).length > 0 ? (
-                Object.entries(watchedVars).map(([key, value]) => (
-                  <div key={key} className="watch-item">
-                    <span className="watch-var">{key}</span>
-                    <span className="watch-value">{JSON.stringify(value)}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-neutral-500">No variables to watch</div>
-              )}
-            </div>
+            <div className="panel-title flex items-center gap-2"><Circle size={14} className="fill-red-500 text-red-500" /><span>BREAKPOINTS</span></div>
+            <div className="breakpoints-list">{Array.from(breakpoints).sort((a, b) => a - b).map(line => (<div key={line} className="breakpoint-item"><Circle size={12} className="fill-red-500 text-red-500" /><span>{activeFile}:line {line}</span></div>))}</div>
           </div>
         </div>
 
         {/* Center - Editor */}
         <div className="ide-editor-container">
-          {/* Tabs */}
-          <div className="ide-tabs" data-testid="editor-tabs">
+          <div className="ide-tabs">
             {fileList.map((file) => (
-              <button
-                key={file.name}
-                className={`ide-tab ${activeFile === file.name ? 'active' : ''}`}
-                onClick={() => changeFile(file.name)}
-                data-testid={`tab-${file.name}`}
-              >
-                <file.icon size={14} />
-                <span>{file.name}</span>
+              <button key={file.name} className={`ide-tab ${activeFile === file.name ? 'active' : ''}`} onClick={() => changeFile(file.name)}>
+                <file.icon size={14} /><span>{file.name}</span>
               </button>
             ))}
           </div>
-
-          {/* Editor */}
-          <div className="ide-editor-wrapper" data-testid="monaco-editor">
+          <div className="ide-editor-wrapper">
             <Editor
               height="100%"
               language={language}
@@ -660,109 +599,45 @@ export const FluxIDE = () => {
               onChange={handleEditorChange}
               onMount={handleEditorDidMount}
               options={{
-                fontSize: 14,
+                fontSize: settings.fontSize,
+                minimap: { enabled: settings.minimap },
+                wordWrap: settings.wordWrap,
                 fontFamily: 'JetBrains Mono, monospace',
-                minimap: { enabled: true },
                 lineNumbers: 'on',
                 glyphMargin: true,
-                folding: true,
-                lineDecorationsWidth: 10,
-                lineNumbersMinChars: 3,
-                renderLineHighlight: 'all',
-                scrollBeyondLastLine: false,
                 automaticLayout: true,
                 tabSize: 2,
-                wordWrap: 'on',
-                quickSuggestions: true,
-                suggestOnTriggerCharacters: true,
-                acceptSuggestionOnEnter: 'on',
               }}
             />
           </div>
-
-          {/* Console Output (Terminal) */}
           <div className="panel-section" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-            <div className="panel-title flex items-center gap-2">
-              <Terminal size={14} />
-              <span>TERMINAL</span>
-            </div>
-            <div className="console-output" data-testid="console-output" ref={terminalRef} style={{ height: '200px', overflow: 'hidden' }}>
-            </div>
+            <div className="panel-title flex items-center gap-2"><Terminal size={14} /><span>TERMINAL</span></div>
+            <div className="console-output" ref={terminalRef} style={{ height: '200px', overflow: 'hidden' }}></div>
           </div>
         </div>
 
-        {/* Right Sidebar - Users & Stats */}
-        <div className="ide-right-sidebar" data-testid="users-sidebar">
+        {/* Right Sidebar */}
+        <div className="ide-right-sidebar">
           <div className="panel-section">
-            <div className="panel-title flex items-center gap-2">
-              <Users size={14} />
-              <span>ACTIVE USERS ({users.length})</span>
-            </div>
-            <div data-testid="users-list">
+            <div className="panel-title flex items-center gap-2"><Users size={14} /><span>ACTIVE USERS ({users.length})</span></div>
+            <div>
               {users.map((user) => (
-                <div key={user.id} className="user-card" data-testid={`user-${user.id}`}>
-                  <img
-                    src={user.avatar}
-                    alt={user.name}
-                    className="user-avatar"
-                    style={{ borderColor: user.color.color }}
-                  />
+                <div key={user.id} className="user-card">
+                  <img src={user.avatar} alt={user.name} className="user-avatar" style={{ borderColor: user.color.color }} />
                   <div className="user-info">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-white">{user.name}</span>
-                      {user.isLocal && <span className="text-[10px] bg-white/10 px-1 rounded text-neutral-400">YOU</span>}
-                      {user.isTyping && <Zap size={10} className="text-orange-500 animate-pulse" />}
-                    </div>
-                    <div className="text-[10px] text-neutral-500">
-                      Line {user.cursor.line}, Col {user.cursor.column}
-                    </div>
+                    <div className="flex items-center gap-2"><span className="font-medium text-white">{user.name}</span>{user.isTyping && <Zap size={10} className="text-orange-500 animate-pulse" />}</div>
+                    <div className="text-[10px] text-neutral-500">Line {user.cursor.line}, Col {user.cursor.column}</div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-
           <div className="panel-section">
-            <div className="panel-title flex items-center gap-2">
-              <Activity size={14} />
-              <span>SESSION STATS</span>
-            </div>
+            <div className="panel-title flex items-center gap-2"><Activity size={14} /><span>SESSION STATS</span></div>
             <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-label">LATENCY</div>
-                <div className="stat-value text-emerald-500">{Math.round(sessionLatency)}ms</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-label">OPS/SEC</div>
-                <div className="stat-value text-orange-500">{opsPerSecond}</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-label">UPTIME</div>
-                <div className="stat-value text-blue-500">04:20:15</div>
-              </div>
+              <div className="stat-card"><div className="stat-label">LATENCY</div><div className="stat-value text-emerald-500">{Math.round(sessionLatency)}ms</div></div>
+              <div className="stat-card"><div className="stat-label">OPS/SEC</div><div className="stat-value text-orange-500">{opsPerSecond}</div></div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Status Bar */}
-      <div className="ide-status-bar" data-testid="status-bar">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-            <span>Connected</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock size={14} />
-            <span>{new Date().toLocaleTimeString()}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <span>UTF-8</span>
-          <span className="text-orange-500 uppercase">{language}</span>
-          <div className="flex items-center gap-1">
-            <Zap size={14} className="text-orange-500" />
-            <span>PRO MODE</span>
           </div>
         </div>
       </div>
