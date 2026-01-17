@@ -352,14 +352,24 @@ export const FluxIDE = () => {
     setIsRunning(true);
     setIsPaused(false);
     setExecutionLine(null);
-    const code = files[activeFile];
-    const result = executeCode(code, language);
-    setConsoleOutput(prev => [...prev, { type: 'info', message: `Running ${activeFile}...`, timestamp: Date.now() }, ...result.output.map(o => ({ ...o, timestamp: Date.now() }))]);
-    const vars = extractVariables(code, 1);
-    setWatchedVars(vars);
+    
+    if (socketRef.current) {
+      const code = files[activeFile];
+      // Map language to command
+      let command = '';
+      if (language === 'javascript') command = `node -e '${code.replace(/'/g, "'\\''")}'`;
+      else if (language === 'python') command = `python3 -c '${code.replace(/'/g, "'\\''")}'`;
+      else if (language === 'typescript') command = `ts-node -e '${code.replace(/'/g, "'\\''")}'`;
+      
+      if (command) {
+        socketRef.current.emit('terminal_input', { input: `${command}\n` });
+      }
+    }
+    
+    setConsoleOutput(prev => [...prev, { type: 'info', message: `Executing ${activeFile} in terminal...`, timestamp: Date.now() }]);
+    
     setTimeout(() => {
       setIsRunning(false);
-      setConsoleOutput(prev => [...prev, { type: 'success', message: 'Execution completed', timestamp: Date.now() }]);
     }, 1000);
     setActiveMenu(null);
   };
