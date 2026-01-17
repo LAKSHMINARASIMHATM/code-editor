@@ -22,25 +22,26 @@ const Terminal = ({ onData, socket }) => {
       allowProposedApi: true
     });
 
-    // DEEP MONKEY PATCH: The Global fix for xterm internal dimension crashes
+    // ULTIMATE MONKEY PATCH: Safeguard at the Prototype Level
+    // We're patching the xterm.js internals to handle undefined dimensions globally
     try {
-      // 1. Patch the instance directly
       if (term._core) {
-        const core = term._core;
-        
-        // Intercept viewport initialization
+        // Intercept viewport initialization at the instance level
         const originalOpen = term.open.bind(term);
         term.open = (parent) => {
           originalOpen(parent);
           
+          // Once opened, we can access the viewport
+          const core = term._core;
           if (core.viewport && !core.viewport._isPatched) {
             const originalRefresh = core.viewport._innerRefresh.bind(core.viewport);
             core.viewport._innerRefresh = () => {
+              // The CRITICAL Check: Ensure renderService and its dimensions exist
               if (core._renderService && core._renderService.dimensions) {
                 try {
                   originalRefresh();
                 } catch (e) {
-                  // Silent catch for internal race conditions
+                  // Silent catch for race conditions during render
                 }
               }
             };
@@ -48,23 +49,20 @@ const Terminal = ({ onData, socket }) => {
           }
         };
 
-        // 2. Patch the RenderService if possible
-        if (core._renderService) {
-          const rs = core._renderService;
-          const originalOnResize = rs.onResize?.bind(rs);
-          if (originalOnResize) {
-            rs.onResize = (cols, rows) => {
-              try {
-                originalOnResize(cols, rows);
-              } catch (e) {
-                // Ignore transient resize errors
-              }
-            };
-          }
+        // Also safeguard the RenderService.onResize method
+        const originalOnResize = term._core._renderService.onResize?.bind(term._core._renderService);
+        if (originalOnResize) {
+          term._core._renderService.onResize = (cols, rows) => {
+            try {
+              originalOnResize(cols, rows);
+            } catch (e) {
+              // Ignore resize errors during layout transitions
+            }
+          };
         }
       }
     } catch (e) {
-      console.error('Failed to apply xterm security patches', e);
+      console.warn('Xterm safety patch failed', e);
     }
     
     // Safety Wrapper for FitAddon
