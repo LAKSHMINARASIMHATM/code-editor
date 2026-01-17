@@ -9,8 +9,7 @@ import {
   Terminal, Code2, Upload, Download, Save, Plus, Scissors, Copy, ClipboardPaste as Paste, Undo, Redo,
   Layout, Monitor, Maximize, Bug, PlayCircle
 } from 'lucide-react';
-import { Terminal as XTerm } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
+import TerminalComponent from './Terminal/Terminal';
 import 'xterm/css/xterm.css';
 
 const SOCKET_URL = window.location.hostname === 'localhost' 
@@ -212,77 +211,11 @@ export const FluxIDE = () => {
     };
   }, [activeFile]);
 
-  // Terminal logic
-  useEffect(() => {
-    if (!terminalRef.current || !socketRef.current) return;
-
-    const term = new XTerm({
-      theme: {
-        background: '#0a0a0a',
-        foreground: '#E5E5E5',
-        cursor: '#F97316',
-      },
-      fontFamily: 'JetBrains Mono, monospace',
-      fontSize: 14,
-      allowProposedApi: true
-    });
-    
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    
-    term.open(terminalRef.current);
-    xtermRef.current = term;
-    fitAddonRef.current = fitAddon;
-
-    // Use ResizeObserver for robust dimension management
-    const resizeObserver = new ResizeObserver(() => {
-      if (!terminalRef.current || terminalRef.current.clientWidth === 0 || terminalRef.current.clientHeight === 0) return;
-
-      // Wrap in requestAnimationFrame to ensure DOM is ready
-      requestAnimationFrame(() => {
-        if (!xtermRef.current || !fitAddonRef.current) return;
-
-        try {
-          // Robust check: terminal must be opened AND have internal dimensions initialized by xterm.js
-          const isReady = xtermRef.current.element && 
-                          xtermRef.current._core && 
-                          xtermRef.current._core.viewport && 
-                          xtermRef.current._core._charSizeService && 
-                          xtermRef.current._core._charSizeService.hasValidSize;
-          
-          if (isReady) {
-            fitAddonRef.current.fit();
-          }
-        } catch (e) {
-          // Silent catch for initial frame errors
-        }
-      });
-    });
-    
-    resizeObserver.observe(terminalRef.current);
-
-    term.onData(data => {
-      if (socketRef.current) {
-        socketRef.current.emit('terminal_input', { input: data });
-      }
-    });
-
-    const handleOutput = (data) => {
-      if (term) {
-        term.write(data.output);
-      }
-    };
-
-    socketRef.current.on('terminal_output', handleOutput);
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.off('terminal_output', handleOutput);
-      }
-      resizeObserver.disconnect();
-      term.dispose();
-    };
-  }, [socketRef.current]);
+  const handleTerminalData = (data) => {
+    if (socketRef.current) {
+      socketRef.current.emit('terminal_input', { input: data });
+    }
+  };
 
   // Sync cursor position
   useEffect(() => {
@@ -639,7 +572,12 @@ export const FluxIDE = () => {
           </div>
           <div className="panel-section" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
             <div className="panel-title flex items-center gap-2"><Terminal size={14} /><span>TERMINAL</span></div>
-            <div className="console-output" ref={terminalRef} style={{ height: '200px', overflow: 'hidden' }}></div>
+            <div style={{ height: '200px', overflow: 'hidden' }}>
+              <TerminalComponent 
+                onData={handleTerminalData} 
+                socket={socketRef.current} 
+              />
+            </div>
           </div>
         </div>
 
