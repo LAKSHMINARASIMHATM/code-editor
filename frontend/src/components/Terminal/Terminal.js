@@ -11,6 +11,7 @@ const Terminal = ({ onData, socket }) => {
   useEffect(() => {
     if (!terminalRef.current) return;
 
+    // Create terminal instance
     const term = new XTerm({
       theme: {
         background: '#0a0a0a',
@@ -21,77 +22,57 @@ const Terminal = ({ onData, socket }) => {
       fontSize: 14,
       allowProposedApi: true
     });
-
-    // ULTIMATE MONKEY PATCH: Safeguard at the Prototype Level
-    // We're patching the xterm.js internals to handle undefined dimensions globally
-    try {
-      if (term._core) {
-        // Intercept viewport initialization at the instance level
-        const originalOpen = term.open.bind(term);
-        term.open = (parent) => {
+    
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    
+    // Safety: Patch the terminal's internal core to prevent the "dimensions" error
+    // This is the most robust way to handle the library's internal race condition
+    if (term._core) {
+      const core = term._core;
+      const originalOpen = term.open.bind(term);
+      
+      term.open = (parent) => {
+        try {
           originalOpen(parent);
           
-          // Once opened, we can access the viewport
-          const core = term._core;
-          if (core.viewport && !core.viewport._isPatched) {
+          // Patch the viewport refresh after opening
+          if (core.viewport) {
             const originalRefresh = core.viewport._innerRefresh.bind(core.viewport);
             core.viewport._innerRefresh = () => {
-              // The CRITICAL Check: Ensure renderService and its dimensions exist
+              // Only refresh if dimensions are available
               if (core._renderService && core._renderService.dimensions) {
                 try {
                   originalRefresh();
-                } catch (e) {
-                  // Silent catch for race conditions during render
-                }
+                } catch (e) {}
               }
             };
-            core.viewport._isPatched = true;
           }
-        };
-
-        // Also safeguard the RenderService.onResize method
-        const originalOnResize = term._core._renderService.onResize?.bind(term._core._renderService);
-        if (originalOnResize) {
-          term._core._renderService.onResize = (cols, rows) => {
-            try {
-              originalOnResize(cols, rows);
-            } catch (e) {
-              // Ignore resize errors during layout transitions
-            }
-          };
+        } catch (e) {
+          console.warn('Terminal open failed', e);
         }
-      }
-    } catch (e) {
-      console.warn('Xterm safety patch failed', e);
+      };
     }
-    
-    // Safety Wrapper for FitAddon
-    const fitAddon = new FitAddon();
-    const safeFit = () => {
-      if (!term.element || !term._core?._charSizeService?.hasValidSize) return;
-      try {
-        fitAddon.fit();
-      } catch (e) {
-        // Silent catch for xterm internal dimensions errors
-      }
-    };
-
-    term.loadAddon(fitAddon);
     
     term.open(terminalRef.current);
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Use a series of delayed fits to ensure the container is fully rendered
-    const timers = [
-      setTimeout(safeFit, 50),
-      setTimeout(safeFit, 200),
-      setTimeout(safeFit, 500)
-    ];
-
+    // Use a ResizeObserver with layout validation
     const resizeObserver = new ResizeObserver(() => {
-      if (!terminalRef.current || terminalRef.current.clientWidth === 0 || terminalRef.current.clientHeight === 0) return;
-      requestAnimationFrame(safeFit);
+      if (!terminalRef.current || terminalRef.current.clientWidth === 0) return;
+      
+      requestAnimationFrame(() => {
+        if (xtermRef.current && fitAddonRef.current) {
+          try {
+            // Only fit if the terminal has a valid internal size
+            const hasSize = xtermRef.current._core?._charSizeService?.hasValidSize;
+            if (hasSize && xtermRef.current.element) {
+              fitAddonRef.current.fit();
+            }
+          } catch (e) {}
+        }
+      });
     });
     
     resizeObserver.observe(terminalRef.current);
@@ -110,14 +91,25 @@ const Terminal = ({ onData, socket }) => {
       socket.on('terminal_output', handleOutput);
     }
 
+    // Initial fit attempt after a short delay
+    const initialFit = setTimeout(() => {
+      if (fitAddonRef.current && xtermRef.current?.element) {
+        try {
+          fitAddonRef.current.fit();
+        } catch (e) {}
+      }
+    }, 100);
+
     return () => {
-      timers.forEach(clearTimeout);
+      clearTimeout(initialFit);
       resizeObserver.disconnect();
       dataDisposable.dispose();
       if (socket) {
         socket.off('terminal_output', handleOutput);
       }
       term.dispose();
+      xtermRef.current = null;
+      fitAddonRef.current = null;
     };
   }, [socket, onData]);
 
