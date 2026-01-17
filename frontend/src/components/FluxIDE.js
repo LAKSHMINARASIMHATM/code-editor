@@ -253,7 +253,9 @@ export const FluxIDE = () => {
     });
 
     const handleOutput = (data) => {
-      term.write(data.output);
+      if (term) {
+        term.write(data.output);
+      }
     };
 
     socketRef.current.on('terminal_output', handleOutput);
@@ -527,6 +529,14 @@ export const FluxIDE = () => {
           </nav>
         </div>
         <div className="flex items-center gap-4">
+          <button 
+            className="flex items-center gap-2 rounded-md bg-orange-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-orange-600 transition-all hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(249,115,22,0.3)]"
+            onClick={handleRunCode}
+            disabled={isRunning}
+          >
+            <Play size={16} fill="currentColor" />
+            <span>RUN</span>
+          </button>
           <div className="flex items-center gap-2 text-sm text-neutral-400">
             <Activity size={16} className="text-emerald-500" />
             <span data-testid="session-users">{users.length}/100 users</span>
