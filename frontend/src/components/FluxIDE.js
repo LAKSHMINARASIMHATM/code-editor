@@ -239,7 +239,10 @@ export const FluxIDE = () => {
         requestAnimationFrame(() => {
           if (xtermRef.current && fitAddonRef.current) {
             try {
-              if (xtermRef.current.element && xtermRef.current.textarea) {
+              // The terminal itself should exist and be initialized before fitting.
+              // We check internal components of the terminal that indicate it's ready.
+              const buffer = xtermRef.current._core?._bufferService?.buffer;
+              if (buffer && xtermRef.current.element) {
                 fitAddonRef.current.fit();
               }
             } catch (e) {
@@ -267,7 +270,9 @@ export const FluxIDE = () => {
     socketRef.current.on('terminal_output', handleOutput);
 
     return () => {
-      socketRef.current.off('terminal_output', handleOutput);
+      if (socketRef.current) {
+        socketRef.current.off('terminal_output', handleOutput);
+      }
       resizeObserver.disconnect();
       term.dispose();
     };
