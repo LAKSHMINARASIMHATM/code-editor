@@ -6,7 +6,7 @@ import {
   Play, Pause, SkipForward, CornerDownRight, CornerUpLeft, 
   RotateCcw, Square, Circle, FileText, FolderOpen, 
   Users, Activity, Zap, Clock, Settings,
-  Terminal, Code2, Upload, Download, Save, Plus, Scissors, Copy, Paste, Undo, Redo,
+  Terminal, Code2, Upload, Download, Save, Plus, Scissors, Copy, ClipboardPaste as Paste, Undo, Redo,
   Layout, Monitor, Maximize, Bug, PlayCircle
 } from 'lucide-react';
 import { Terminal as XTerm } from 'xterm';
