@@ -234,23 +234,29 @@ export const FluxIDE = () => {
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
+    // Use ResizeObserver for robust dimension management
     const resizeObserver = new ResizeObserver(() => {
-      if (terminalRef.current && terminalRef.current.clientWidth > 0 && terminalRef.current.clientHeight > 0) {
-        requestAnimationFrame(() => {
-          if (xtermRef.current && fitAddonRef.current) {
-            try {
-              // The terminal itself should exist and be initialized before fitting.
-              // We check internal components of the terminal that indicate it's ready.
-              const buffer = xtermRef.current._core?._bufferService?.buffer;
-              if (buffer && xtermRef.current.element) {
-                fitAddonRef.current.fit();
-              }
-            } catch (e) {
-              console.warn('Xterm fit failed', e);
-            }
+      if (!terminalRef.current || terminalRef.current.clientWidth === 0 || terminalRef.current.clientHeight === 0) return;
+
+      // Wrap in requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        if (!xtermRef.current || !fitAddonRef.current) return;
+
+        try {
+          // Robust check: terminal must be opened AND have internal dimensions initialized by xterm.js
+          const isReady = xtermRef.current.element && 
+                          xtermRef.current._core && 
+                          xtermRef.current._core.viewport && 
+                          xtermRef.current._core._charSizeService && 
+                          xtermRef.current._core._charSizeService.hasValidSize;
+          
+          if (isReady) {
+            fitAddonRef.current.fit();
           }
-        });
-      }
+        } catch (e) {
+          // Silent catch for initial frame errors
+        }
+      });
     });
     
     resizeObserver.observe(terminalRef.current);
