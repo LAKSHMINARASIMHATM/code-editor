@@ -21,6 +21,30 @@ const Terminal = ({ onData, socket }) => {
       fontSize: 14,
       allowProposedApi: true
     });
+
+    // MONKEY PATCH: The ultimate fix for "Cannot read properties of undefined (reading 'dimensions')"
+    // This error happens deep in xterm's Viewport._innerRefresh when it tries to access 
+    // this._renderService.dimensions before it's ready.
+    if (term._core) {
+      const core = term._core;
+      // We wait for the core to be initialized, then wrap the viewport refresh
+      const originalOpen = term.open.bind(term);
+      term.open = (parent) => {
+        originalOpen(parent);
+        if (core.viewport) {
+          const originalRefresh = core.viewport._innerRefresh.bind(core.viewport);
+          core.viewport._innerRefresh = () => {
+            try {
+              if (core._renderService && core._renderService.dimensions) {
+                originalRefresh();
+              }
+            } catch (e) {
+              // Ignore dimensions errors during layout transitions
+            }
+          };
+        }
+      };
+    }
     
     // Safety Wrapper for FitAddon
     const fitAddon = new FitAddon();
