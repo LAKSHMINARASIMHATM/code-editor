@@ -34,48 +34,55 @@ const Terminal = ({ onData, socket }) => {
         XTerm.prototype.open = function(parent) {
           originalOpen.call(this, parent);
           const core = this._core;
-          if (core && core.viewport && !core.viewport._isPatched) {
-            const originalRefresh = core.viewport._innerRefresh.bind(core.viewport);
-            core.viewport._innerRefresh = () => {
-              if (core._renderService && core._renderService.dimensions) {
-                try { originalRefresh(); } catch (e) {}
-              }
-            };
-            core.viewport._isPatched = true;
+          
+          if (core) {
+            // Patch RenderService if it exists
+            if (core._renderService && !core._renderService._isPatched) {
+              patchRenderService(core._renderService);
+            }
+            
+            // Patch Viewport refresh
+            if (core.viewport && !core.viewport._isPatched) {
+              const originalRefresh = core.viewport._innerRefresh.bind(core.viewport);
+              core.viewport._innerRefresh = () => {
+                if (core._renderService && core._renderService.dimensions) {
+                  try { originalRefresh(); } catch (e) {}
+                }
+              };
+              core.viewport._isPatched = true;
+            }
           }
         };
-
-        // Safeguard RenderService prototype
-        // We can't easily get the RenderService class, but we can patch instances
         XTerm.prototype._isGlobalPatched = true;
+      }
+
+      // Helper to apply dimension safety
+      function patchRenderService(rs) {
+        if (!rs || rs._isPatched) return;
+        
+        const safeDimensions = {
+          device: { 
+            char: { width: 0, height: 0 }, 
+            cell: { width: 0, height: 0 } 
+          },
+          canvas: { width: 0, height: 0 },
+          scaledChar: { width: 0, height: 0 },
+          scaledCell: { width: 0, height: 0 }
+        };
+
+        // Use a getter that NEVER returns undefined
+        Object.defineProperty(rs, 'dimensions', {
+          get: function() { return this._dimensions || safeDimensions; },
+          set: function(val) { this._dimensions = val; },
+          configurable: true
+        });
+        rs._isPatched = true;
       }
 
       // 2. Patch the specific instance for double safety
       if (term._core) {
         const core = term._core;
         
-        const patchRenderService = (rs) => {
-          if (!rs || rs._isPatched) return;
-          
-          // Define a safe dimensions property with all required nested objects
-          const safeDimensions = {
-            device: { 
-              char: { width: 0, height: 0 }, 
-              cell: { width: 0, height: 0 } 
-            },
-            canvas: { width: 0, height: 0 },
-            scaledChar: { width: 0, height: 0 },
-            scaledCell: { width: 0, height: 0 }
-          };
-
-          Object.defineProperty(rs, 'dimensions', {
-            get: function() { return this._dimensions || safeDimensions; },
-            set: function(val) { this._dimensions = val; },
-            configurable: true
-          });
-          rs._isPatched = true;
-        };
-
         // Safeguard MouseService too for the "reading 'cell'" error
         const patchMouseService = (ms) => {
           if (!ms || ms._isPatched) return;
