@@ -1,47 +1,27 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
-import logging
-from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
-import uuid
-from datetime import datetime, timezone
-import socketio
+import pty
+import termios
+import struct
+import fcntl
 import asyncio
-import random
+import logging
+import socketio
+from fastapi import FastAPI, APIRouter
+from starlette.middleware.cors import CORSMiddleware
+from pathlib import Path
 
-
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
-
-# MongoDB connection
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-db_name = os.environ.get('DB_NAME', 'test_database')
-client = AsyncIOMotorClient(mongo_url)
-db = client[db_name]
-
-# Store active users and their session data
-active_users = {}
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Create Socket.IO server
-sio = socketio.AsyncServer(
-    async_mode='asgi',
-    cors_allowed_origins='*',
-    logger=False,
-    engineio_logger=False
-)
-
-# Create the main app without a prefix
+sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 app = FastAPI()
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
-
-# Store active users and their session data
+# Store active terminal sessions
+terminal_sessions = {}
 active_users = {}
+
 user_colors = [
     {'color': '#3B82F6', 'name': 'blue'},
     {'color': '#10B981', 'name': 'emerald'},
@@ -62,32 +42,16 @@ def get_avatar_url(index):
     ]
     return AVATAR_URLS[index % len(AVATAR_URLS)]
 
-import pty
-import termios
-import struct
-import fcntl
-
-# Store active terminal sessions
-terminal_sessions = {}
-
-@sio.event
-async def terminal_input(sid, data):
-    if sid in terminal_sessions:
-        master_fd = terminal_sessions[sid]['master_fd']
-        os.write(master_fd, data.get('input', '').encode())
-
 async def read_terminal_output(sid, master_fd):
+    loop = asyncio.get_event_loop()
     while sid in terminal_sessions:
         try:
-            # Use a slightly longer sleep or non-blocking read to avoid CPU spikes
-            await asyncio.sleep(0.02)
-            
-            # Use a non-blocking read if possible
-            loop = asyncio.get_event_loop()
+            # Non-blocking read from PTY
             output = await loop.run_in_executor(None, lambda: os.read(master_fd, 4096).decode(errors='replace'))
-            
             if output:
                 await sio.emit('terminal_output', {'output': output}, to=sid)
+            else:
+                break # EOF
         except (OSError, EOFError):
             break
         except Exception as e:
@@ -95,7 +59,20 @@ async def read_terminal_output(sid, master_fd):
             break
     
     if sid in terminal_sessions:
-        del terminal_sessions[sid]
+        cleanup_terminal(sid)
+
+def cleanup_terminal(sid):
+    if sid in terminal_sessions:
+        session = terminal_sessions.pop(sid)
+        try:
+            os.close(session['master_fd'])
+            session['process'].terminate()
+        except:
+            pass
+
+@sio.event
+async def connect(sid, environ):
+    logger.info(f"Client connected: {sid}")
 
 @sio.event
 async def join_session(sid, data):
@@ -112,71 +89,68 @@ async def join_session(sid, data):
         'isTyping': False
     }
     
-    # Initialize PTY for this session
+    # Initialize real PTY for this session
     master_fd, slave_fd = pty.openpty()
-    p = asyncio.create_subprocess_exec(
+    
+    # Start bash in the PTY
+    process = await asyncio.create_subprocess_exec(
         'bash',
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd,
+        env=os.environ.copy(),
         preexec_fn=os.setsid
     )
     
+    # Close slave_fd in parent
+    os.close(slave_fd)
+    
     terminal_sessions[sid] = {
         'master_fd': master_fd,
-        'process': await p
+        'process': process
     }
     
+    # Start reading task
     asyncio.create_task(read_terminal_output(sid, master_fd))
     
-    # Send current users to the new user
     await sio.emit('session_joined', {
         'userId': sid,
-        'users': [
-            {**user, 'id': user_id, 'isLocal': user_id == sid}
-            for user_id, user in active_users.items()
-        ]
+        'users': [{**user, 'id': uid, 'isLocal': uid == sid} for uid, user in active_users.items()]
     }, to=sid)
     
-    # Notify others about the new user
     await sio.emit('user_joined', active_users[sid], skip_sid=sid)
-    
-    logger.info(f"User joined: {user_name} ({sid})")
+
+@sio.event
+async def terminal_input(sid, data):
+    if sid in terminal_sessions:
+        master_fd = terminal_sessions[sid]['master_fd']
+        os.write(master_fd, data.get('input', '').encode())
+
+@sio.event
+async def terminal_resize(sid, data):
+    if sid in terminal_sessions:
+        master_fd = terminal_sessions[sid]['master_fd']
+        cols = data.get('cols', 80)
+        rows = data.get('rows', 24)
+        # Set window size for PTY
+        s = struct.pack('HHHH', rows, cols, 0, 0)
+        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, s)
 
 @sio.event
 async def disconnect(sid):
     if sid in active_users:
-        user = active_users.pop(sid)
+        active_users.pop(sid)
         await sio.emit('user_left', {'userId': sid})
-        logger.info(f"User disconnected: {user['name']} ({sid})")
-    
-    if sid in terminal_sessions:
-        session = terminal_sessions.pop(sid)
-        session['process'].terminate()
-        os.close(session['master_fd'])
+    cleanup_terminal(sid)
 
 @sio.event
 async def cursor_move(sid, data):
     if sid in active_users:
         active_users[sid]['cursor'] = data.get('cursor', {'line': 1, 'column': 0})
-        # Broadcast cursor position to other users
-        await sio.emit('cursor_update', {
-            'userId': sid,
-            'cursor': active_users[sid]['cursor']
-        }, skip_sid=sid)
-
-@sio.event
-async def typing_status(sid, data):
-    if sid in active_users:
-        active_users[sid]['isTyping'] = data.get('isTyping', False)
-        await sio.emit('typing_update', {
-            'userId': sid,
-            'isTyping': active_users[sid]['isTyping']
-        }, skip_sid=sid)
+        await sio.emit('cursor_update', {'userId': sid, 'cursor': active_users[sid]['cursor']}, skip_sid=sid)
 
 @sio.event
 async def code_change(sid, data):
-    # Broadcast code changes to other users
     await sio.emit('code_update', {
         'userId': sid,
         'operation': data.get('operation'),
@@ -184,69 +158,15 @@ async def code_change(sid, data):
         'content': data.get('content')
     }, skip_sid=sid)
 
-@sio.event
-async def terminal_command(sid, data):
-    command = data.get('command', '')
-    logger.info(f"Terminal command from {sid}: {command}")
-    
-    # Simple command simulation
-    output = ""
-    if command.strip() == "ls":
-        output = "main.js  utils.py  App.tsx  styles.css  README.md"
-    elif command.strip().startswith("echo"):
-        output = command.replace("echo", "").strip()
-    elif command.strip() == "pwd":
-        output = "/workspace"
-    elif command.strip() == "whoami":
-        output = active_users.get(sid, {}).get('name', 'user')
-    elif command.strip() == "date":
-        output = datetime.now().strftime("%a %b %d %H:%M:%S UTC %Y")
-    elif command.strip() == "help":
-        output = "Available commands: ls, pwd, whoami, date, echo, clear, help"
-    elif command.strip() == "clear":
-        output = "\x1b[2J\x1b[H"  # ANSI clear screen
-    else:
-        output = f"bash: {command.strip()}: command not found"
-    
-    await sio.emit('terminal_output', {
-        'output': output + '\n'
-    }, to=sid)
-
-async def broadcast_users():
-    users_list = [
-        {**user, 'id': user_id}
-        for user_id, user in active_users.items()
-    ]
-    await sio.emit('users_update', {'users': users_list})
-
-# Include the router in the main app
-app.include_router(api_router)
-
 # Mount Socket.IO
-socket_app = socketio.ASGIApp(
-    sio,
-    other_asgi_app=app,
-    socketio_path='/socket.io'
-)
+socket_app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path='/socket.io')
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
-
-# Export socket_app as the main ASGI application
 app = socket_app

@@ -140,6 +140,14 @@ const Terminal = ({ onData, socket }) => {
             const hasSize = xtermRef.current._core?._charSizeService?.hasValidSize;
             if (hasSize && xtermRef.current.element) {
               fitAddonRef.current.fit();
+              
+              // Notify backend about the new terminal size
+              if (socket && xtermRef.current.cols && xtermRef.current.rows) {
+                socket.emit('terminal_resize', {
+                  cols: xtermRef.current.cols,
+                  rows: xtermRef.current.rows
+                });
+              }
             }
           } catch (e) {}
         }
