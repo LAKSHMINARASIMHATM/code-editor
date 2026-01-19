@@ -78,6 +78,9 @@ const Terminal = ({ onData, socket }) => {
     resizeObserver.observe(terminalRef.current);
 
     const dataDisposable = term.onData(data => {
+      if (socket) {
+        socket.emit('terminal_input', { input: data });
+      }
       if (onData) onData(data);
     });
 

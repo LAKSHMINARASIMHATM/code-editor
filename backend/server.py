@@ -79,12 +79,19 @@ async def terminal_input(sid, data):
 async def read_terminal_output(sid, master_fd):
     while sid in terminal_sessions:
         try:
-            # Use non-blocking read
-            await asyncio.sleep(0.01)
-            output = os.read(master_fd, 1024).decode(errors='replace')
+            # Use a slightly longer sleep or non-blocking read to avoid CPU spikes
+            await asyncio.sleep(0.02)
+            
+            # Use a non-blocking read if possible
+            loop = asyncio.get_event_loop()
+            output = await loop.run_in_executor(None, lambda: os.read(master_fd, 4096).decode(errors='replace'))
+            
             if output:
                 await sio.emit('terminal_output', {'output': output}, to=sid)
-        except OSError:
+        except (OSError, EOFError):
+            break
+        except Exception as e:
+            logger.error(f"Terminal read error for {sid}: {e}")
             break
     
     if sid in terminal_sessions:
