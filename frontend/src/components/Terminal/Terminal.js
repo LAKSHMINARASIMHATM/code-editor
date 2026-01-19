@@ -30,18 +30,46 @@ const Terminal = ({ onData, socket }) => {
     // This is the most robust way to handle the library's internal race condition
     if (term._core) {
       const core = term._core;
-      const originalOpen = term.open.bind(term);
       
+      // Patch the RenderService itself if it exists or when it's created
+      const patchRenderService = (renderService) => {
+        if (!renderService || renderService._isPatched) return;
+        
+        // Define a safe dimensions property
+        Object.defineProperty(renderService, 'dimensions', {
+          get: function() {
+            return this._dimensions || {
+              device: { char: { width: 0, height: 0 }, cell: { width: 0, height: 0 } },
+              canvas: { width: 0, height: 0 },
+              scaledChar: { width: 0, height: 0 },
+              scaledCell: { width: 0, height: 0 }
+            };
+          },
+          set: function(val) {
+            this._dimensions = val;
+          },
+          configurable: true
+        });
+        renderService._isPatched = true;
+      };
+
+      const originalOpen = term.open.bind(term);
       term.open = (parent) => {
         try {
+          // If renderService exists before open, patch it
+          if (core._renderService) patchRenderService(core._renderService);
+          
           originalOpen(parent);
           
+          // If renderService is created during open, patch it
+          if (core._renderService) patchRenderService(core._renderService);
+
           // Patch the viewport refresh after opening
           if (core.viewport) {
             const originalRefresh = core.viewport._innerRefresh.bind(core.viewport);
             core.viewport._innerRefresh = () => {
-              // Only refresh if dimensions are available
-              if (core._renderService && core._renderService.dimensions) {
+              // Only refresh if dimensions are available and valid
+              if (core._renderService && core._renderService.dimensions && core._renderService.dimensions.device.char.width > 0) {
                 try {
                   originalRefresh();
                 } catch (e) {}
