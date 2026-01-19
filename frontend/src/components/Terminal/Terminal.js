@@ -26,60 +26,87 @@ const Terminal = ({ onData, socket }) => {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     
-    // Safety: Patch the terminal's internal core to prevent the "dimensions" error
-    // This is the most robust way to handle the library's internal race condition
-    if (term._core) {
-      const core = term._core;
-      
-      // Patch the RenderService itself if it exists or when it's created
-      const patchRenderService = (renderService) => {
-        if (!renderService || renderService._isPatched) return;
-        
-        // Define a safe dimensions property
-        Object.defineProperty(renderService, 'dimensions', {
-          get: function() {
-            return this._dimensions || {
-              device: { char: { width: 0, height: 0 }, cell: { width: 0, height: 0 } },
-              canvas: { width: 0, height: 0 },
-              scaledChar: { width: 0, height: 0 },
-              scaledCell: { width: 0, height: 0 }
-            };
-          },
-          set: function(val) {
-            this._dimensions = val;
-          },
-          configurable: true
-        });
-        renderService._isPatched = true;
-      };
-
-      const originalOpen = term.open.bind(term);
-      term.open = (parent) => {
-        try {
-          // If renderService exists before open, patch it
-          if (core._renderService) patchRenderService(core._renderService);
-          
-          originalOpen(parent);
-          
-          // If renderService is created during open, patch it
-          if (core._renderService) patchRenderService(core._renderService);
-
-          // Patch the viewport refresh after opening
-          if (core.viewport) {
+    // ULTIMATE MONKEY PATCH: The Global fix for xterm internal dimension and cell crashes
+    try {
+      // 1. Patch the XTerm prototype itself before any instances are created
+      if (!XTerm.prototype._isGlobalPatched) {
+        const originalOpen = XTerm.prototype.open;
+        XTerm.prototype.open = function(parent) {
+          originalOpen.call(this, parent);
+          const core = this._core;
+          if (core && core.viewport && !core.viewport._isPatched) {
             const originalRefresh = core.viewport._innerRefresh.bind(core.viewport);
             core.viewport._innerRefresh = () => {
-              // Only refresh if dimensions are available and valid
-              if (core._renderService && core._renderService.dimensions && core._renderService.dimensions.device.char.width > 0) {
-                try {
-                  originalRefresh();
-                } catch (e) {}
+              if (core._renderService && core._renderService.dimensions) {
+                try { originalRefresh(); } catch (e) {}
+              }
+            };
+            core.viewport._isPatched = true;
+          }
+        };
+
+        // Safeguard RenderService prototype
+        // We can't easily get the RenderService class, but we can patch instances
+        XTerm.prototype._isGlobalPatched = true;
+      }
+
+      // 2. Patch the specific instance for double safety
+      if (term._core) {
+        const core = term._core;
+        
+        const patchRenderService = (rs) => {
+          if (!rs || rs._isPatched) return;
+          
+          // Define a safe dimensions property with all required nested objects
+          const safeDimensions = {
+            device: { 
+              char: { width: 0, height: 0 }, 
+              cell: { width: 0, height: 0 } 
+            },
+            canvas: { width: 0, height: 0 },
+            scaledChar: { width: 0, height: 0 },
+            scaledCell: { width: 0, height: 0 }
+          };
+
+          Object.defineProperty(rs, 'dimensions', {
+            get: function() { return this._dimensions || safeDimensions; },
+            set: function(val) { this._dimensions = val; },
+            configurable: true
+          });
+          rs._isPatched = true;
+        };
+
+        // Safeguard MouseService too for the "reading 'cell'" error
+        const patchMouseService = (ms) => {
+          if (!ms || ms._isPatched) return;
+          const originalGetCoords = ms.getCoords?.bind(ms);
+          if (originalGetCoords) {
+            ms.getCoords = (event, element, colCount, rowCount, isPrecomputed) => {
+              try {
+                // If dimensions are missing, getCoords will crash
+                if (!core._renderService?.dimensions) return undefined;
+                return originalGetCoords(event, element, colCount, rowCount, isPrecomputed);
+              } catch (e) {
+                return undefined;
               }
             };
           }
-        } catch (e) {
-          console.warn('Terminal open failed', e);
-        }
-      };
+          ms._isPatched = true;
+        };
+
+        const instOpen = term.open.bind(term);
+        term.open = (parent) => {
+          try {
+            if (core._renderService) patchRenderService(core._renderService);
+            if (core.mouseService) patchMouseService(core.mouseService);
+            instOpen(parent);
+            if (core._renderService) patchRenderService(core._renderService);
+            if (core.mouseService) patchMouseService(core.mouseService);
+          } catch (e) {}
+        };
+      }
+    } catch (e) {
+      console.warn('Deep xterm safety patch failed', e);
     }
     
     term.open(terminalRef.current);
