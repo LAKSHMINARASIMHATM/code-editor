@@ -51,8 +51,17 @@ const Terminal = ({ onData, socket }) => {
               };
               core.viewport._isPatched = true;
             }
+
+            // Patch MouseService globally when open is called
+            if (core.mouseService && !core.mouseService._isPatched) {
+              patchMouseService(core.mouseService, core);
+            }
           }
         };
+
+        // 2. Patch MouseService prototype directly if possible
+        // Since we can't easily access MouseService constructor, we'll patch the instance
+        // But we can also attempt to patch the internal _serviceBrand if xterm exposes it
         XTerm.prototype._isGlobalPatched = true;
       }
 
@@ -70,7 +79,6 @@ const Terminal = ({ onData, socket }) => {
           scaledCell: { width: 0, height: 0 }
         };
 
-        // Use a getter that NEVER returns undefined
         Object.defineProperty(rs, 'dimensions', {
           get: function() { return this._dimensions || safeDimensions; },
           set: function(val) { this._dimensions = val; },
@@ -79,36 +87,37 @@ const Terminal = ({ onData, socket }) => {
         rs._isPatched = true;
       }
 
-      // 2. Patch the specific instance for double safety
-      if (term._core) {
-        const core = term._core;
-        
-        // Safeguard MouseService too for the "reading 'cell'" error
-        const patchMouseService = (ms) => {
-          if (!ms || ms._isPatched) return;
-          const originalGetCoords = ms.getCoords?.bind(ms);
-          if (originalGetCoords) {
-            ms.getCoords = (event, element, colCount, rowCount, isPrecomputed) => {
-              try {
-                // If dimensions are missing, getCoords will crash
-                if (!core._renderService?.dimensions) return undefined;
-                return originalGetCoords(event, element, colCount, rowCount, isPrecomputed);
-              } catch (e) {
+      // Helper to apply mouse service safety
+      function patchMouseService(ms, core) {
+        if (!ms || ms._isPatched) return;
+        const originalGetCoords = ms.getCoords;
+        if (typeof originalGetCoords === 'function') {
+          ms.getCoords = function(event, element, colCount, rowCount, isPrecomputed) {
+            try {
+              // The crash happens because core._renderService.dimensions is undefined
+              if (!core._renderService || !core._renderService.dimensions) {
                 return undefined;
               }
-            };
-          }
-          ms._isPatched = true;
-        };
+              return originalGetCoords.call(this, event, element, colCount, rowCount, isPrecomputed);
+            } catch (e) {
+              return undefined;
+            }
+          };
+        }
+        ms._isPatched = true;
+      }
 
+      // 3. Patch the specific instance for triple safety
+      if (term._core) {
+        const core = term._core;
         const instOpen = term.open.bind(term);
         term.open = (parent) => {
           try {
             if (core._renderService) patchRenderService(core._renderService);
-            if (core.mouseService) patchMouseService(core.mouseService);
+            if (core.mouseService) patchMouseService(core.mouseService, core);
             instOpen(parent);
             if (core._renderService) patchRenderService(core._renderService);
-            if (core.mouseService) patchMouseService(core.mouseService);
+            if (core.mouseService) patchMouseService(core.mouseService, core);
           } catch (e) {}
         };
       }
