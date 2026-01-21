@@ -1,14 +1,17 @@
 import os
-import pty
-import termios
-import struct
-import fcntl
 import asyncio
 import logging
 import socketio
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-from pathlib import Path
+
+# Import package management modules
+from filesystem.virtual_fs import VirtualFileSystem
+from registry.registry_client import RegistryClient
+from dependency.resolver import DependencyResolver
+from package_managers.npm_manager import NPMManager
+from package_managers.pip_manager import PipManager
+from commands.executor import CommandExecutor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,8 +21,15 @@ logger = logging.getLogger(__name__)
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 app = FastAPI()
 
-# Store active terminal sessions
-terminal_sessions = {}
+# Initialize package management system
+virtual_fs = VirtualFileSystem()
+registry_client = RegistryClient()
+dependency_resolver = DependencyResolver(registry_client)
+npm_manager = NPMManager(virtual_fs, registry_client, dependency_resolver)
+pip_manager = PipManager(virtual_fs, registry_client, dependency_resolver)
+command_executor = CommandExecutor(npm_manager, pip_manager, virtual_fs)
+
+# Store active users and sessions
 active_users = {}
 
 user_colors = [
@@ -42,34 +52,6 @@ def get_avatar_url(index):
     ]
     return AVATAR_URLS[index % len(AVATAR_URLS)]
 
-async def read_terminal_output(sid, master_fd):
-    loop = asyncio.get_event_loop()
-    while sid in terminal_sessions:
-        try:
-            # Non-blocking read from PTY
-            output = await loop.run_in_executor(None, lambda: os.read(master_fd, 4096).decode(errors='replace'))
-            if output:
-                await sio.emit('terminal_output', {'output': output}, to=sid)
-            else:
-                break # EOF
-        except (OSError, EOFError):
-            break
-        except Exception as e:
-            logger.error(f"Terminal read error for {sid}: {e}")
-            break
-    
-    if sid in terminal_sessions:
-        cleanup_terminal(sid)
-
-def cleanup_terminal(sid):
-    if sid in terminal_sessions:
-        session = terminal_sessions.pop(sid)
-        try:
-            os.close(session['master_fd'])
-            session['process'].terminate()
-        except:
-            pass
-
 @sio.event
 async def connect(sid, environ):
     logger.info(f"Client connected: {sid}")
@@ -89,29 +71,7 @@ async def join_session(sid, data):
         'isTyping': False
     }
     
-    # Initialize real PTY for this session
-    master_fd, slave_fd = pty.openpty()
-    
-    # Start bash in the PTY
-    process = await asyncio.create_subprocess_exec(
-        'bash',
-        stdin=slave_fd,
-        stdout=slave_fd,
-        stderr=slave_fd,
-        env=os.environ.copy(),
-        preexec_fn=os.setsid
-    )
-    
-    # Close slave_fd in parent
-    os.close(slave_fd)
-    
-    terminal_sessions[sid] = {
-        'master_fd': master_fd,
-        'process': process
-    }
-    
-    # Start reading task
-    asyncio.create_task(read_terminal_output(sid, master_fd))
+    logger.info(f"User joined: {user_name} ({sid})")
     
     await sio.emit('session_joined', {
         'userId': sid,
@@ -121,33 +81,73 @@ async def join_session(sid, data):
     await sio.emit('user_joined', active_users[sid], skip_sid=sid)
 
 @sio.event
+async def terminal_command(sid, data):
+    """Handle terminal command execution with package management"""
+    command = data.get('command', '')
+    logger.info(f"Terminal command from {sid}: {command}")
+    
+    try:
+        # Execute command
+        result = await command_executor.execute(command)
+        
+        # Send output back to client
+        output = result['output']
+        if result['error']:
+            output += result['error']
+        
+        await sio.emit('terminal_output', {
+            'output': output,
+            'success': result['success']
+        }, to=sid)
+        
+    except Exception as e:
+        logger.error(f"Error executing command: {e}")
+        await sio.emit('terminal_output', {
+            'output': f"\x1b[1;31mError: {str(e)}\x1b[0m\n",
+            'success': False
+        }, to=sid)
+
+@sio.event
 async def terminal_input(sid, data):
-    if sid in terminal_sessions:
-        master_fd = terminal_sessions[sid]['master_fd']
-        os.write(master_fd, data.get('input', '').encode())
+    """Handle terminal input - deprecated, use terminal_command instead"""
+    input_text = data.get('input', '')
+    logger.info(f"Terminal input from {sid}: {input_text[:50]}")
+    
+    # Route to terminal_command
+    await terminal_command(sid, {'command': input_text})
 
 @sio.event
 async def terminal_resize(sid, data):
-    if sid in terminal_sessions:
-        master_fd = terminal_sessions[sid]['master_fd']
-        cols = data.get('cols', 80)
-        rows = data.get('rows', 24)
-        # Set window size for PTY
-        s = struct.pack('HHHH', rows, cols, 0, 0)
-        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, s)
+    """Handle terminal resize"""
+    cols = data.get('cols', 80)
+    rows = data.get('rows', 24)
+    logger.info(f"Terminal resize from {sid}: {cols}x{rows}")
 
 @sio.event
 async def disconnect(sid):
     if sid in active_users:
+        user_name = active_users[sid]['name']
         active_users.pop(sid)
+        logger.info(f"User disconnected: {user_name} ({sid})")
         await sio.emit('user_left', {'userId': sid})
-    cleanup_terminal(sid)
 
 @sio.event
 async def cursor_move(sid, data):
     if sid in active_users:
         active_users[sid]['cursor'] = data.get('cursor', {'line': 1, 'column': 0})
-        await sio.emit('cursor_update', {'userId': sid, 'cursor': active_users[sid]['cursor']}, skip_sid=sid)
+        await sio.emit('cursor_update', {
+            'userId': sid, 
+            'cursor': active_users[sid]['cursor']
+        }, skip_sid=sid)
+
+@sio.event
+async def typing_status(sid, data):
+    if sid in active_users:
+        active_users[sid]['isTyping'] = data.get('isTyping', False)
+        await sio.emit('typing_update', {
+            'userId': sid,
+            'isTyping': active_users[sid]['isTyping']
+        }, skip_sid=sid)
 
 @sio.event
 async def code_change(sid, data):
@@ -170,3 +170,9 @@ app.add_middleware(
 )
 
 app = socket_app
+
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("Starting WebSocket server with Package Management on http://localhost:8000")
+    logger.info("Supports: npm, pip, file system commands")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

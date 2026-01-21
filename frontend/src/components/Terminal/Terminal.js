@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { Terminal as XTerm } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import 'xterm/css/xterm.css';
+import { Terminal as XTerm } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
 
-const Terminal = ({ onData, socket }) => {
+const Terminal = ({ socket }) => {
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
   const fitAddonRef = useRef(null);
@@ -17,155 +17,151 @@ const Terminal = ({ onData, socket }) => {
         background: '#0a0a0a',
         foreground: '#E5E5E5',
         cursor: '#F97316',
+        black: '#000000',
+        red: '#EF4444',
+        green: '#10B981',
+        yellow: '#F59E0B',
+        blue: '#3B82F6',
+        magenta: '#EC4899',
+        cyan: '#06B6D4',
+        white: '#E5E5E5',
+        brightBlack: '#64748B',
+        brightRed: '#F87171',
+        brightGreen: '#34D399',
+        brightYellow: '#FBBF24',
+        brightBlue: '#60A5FA',
+        brightMagenta: '#F472B6',
+        brightCyan: '#22D3EE',
+        brightWhite: '#F5F5F5',
       },
-      fontFamily: 'JetBrains Mono, monospace',
+      fontFamily: '"JetBrains Mono", "Fira Code", monospace',
       fontSize: 14,
+      cursorBlink: true,
+      cursorStyle: 'block',
+      scrollback: 10000,
       allowProposedApi: true
     });
-    
+
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
-    
-    // ULTIMATE MONKEY PATCH: The Global fix for xterm internal dimension and cell crashes
+
+    // Safety patches for xterm dimension issues
     try {
-      // 1. Patch the XTerm prototype itself before any instances are created
       if (!XTerm.prototype._isGlobalPatched) {
-        const originalOpen = XTerm.prototype.open;
-        XTerm.prototype.open = function(parent) {
-          originalOpen.call(this, parent);
-          const core = this._core;
-          
-          if (core) {
-            // Patch RenderService if it exists
-            if (core._renderService && !core._renderService._isPatched) {
-              patchRenderService(core._renderService);
-            }
-            
-            // Patch Viewport refresh
-            if (core.viewport && !core.viewport._isPatched) {
-              const originalRefresh = core.viewport._innerRefresh.bind(core.viewport);
-              core.viewport._innerRefresh = () => {
-                if (core._renderService && core._renderService.dimensions) {
-                  try { originalRefresh(); } catch (e) {}
-                }
-              };
-              core.viewport._isPatched = true;
-            }
-
-            // Patch MouseService globally when open is called
-            if (core.mouseService && !core.mouseService._isPatched) {
-              patchMouseService(core.mouseService, core);
-            }
+        const originalOnError = window.onerror;
+        window.onerror = function (message, source, lineno, colno, error) {
+          if (typeof message === 'string' && (message.includes('cell') || message.includes('getCoords'))) {
+            return true;
           }
+          if (originalOnError) return originalOnError.apply(this, arguments);
+          return false;
         };
-
-        // 2. Patch MouseService prototype directly if possible
-        // Since we can't easily access MouseService constructor, we'll patch the instance
-        // But we can also attempt to patch the internal _serviceBrand if xterm exposes it
         XTerm.prototype._isGlobalPatched = true;
       }
-
-      // Helper to apply dimension safety
-      function patchRenderService(rs) {
-        if (!rs || rs._isPatched) return;
-        
-        const safeDimensions = {
-          device: { 
-            char: { width: 0, height: 0 }, 
-            cell: { width: 0, height: 0 } 
-          },
-          canvas: { width: 0, height: 0 },
-          scaledChar: { width: 0, height: 0 },
-          scaledCell: { width: 0, height: 0 }
-        };
-
-        Object.defineProperty(rs, 'dimensions', {
-          get: function() { return this._dimensions || safeDimensions; },
-          set: function(val) { this._dimensions = val; },
-          configurable: true
-        });
-        rs._isPatched = true;
-      }
-
-      // Helper to apply mouse service safety
-      function patchMouseService(ms, core) {
-        if (!ms || ms._isPatched) return;
-        const originalGetCoords = ms.getCoords;
-        if (typeof originalGetCoords === 'function') {
-          ms.getCoords = function(event, element, colCount, rowCount, isPrecomputed) {
-            try {
-              // The crash happens because core._renderService.dimensions is undefined
-              if (!core._renderService || !core._renderService.dimensions) {
-                return undefined;
-              }
-              return originalGetCoords.call(this, event, element, colCount, rowCount, isPrecomputed);
-            } catch (e) {
-              return undefined;
-            }
-          };
-        }
-        ms._isPatched = true;
-      }
-
-      // 3. Patch the specific instance for triple safety
-      if (term._core) {
-        const core = term._core;
-        const instOpen = term.open.bind(term);
-        term.open = (parent) => {
-          try {
-            if (core._renderService) patchRenderService(core._renderService);
-            if (core.mouseService) patchMouseService(core.mouseService, core);
-            instOpen(parent);
-            if (core._renderService) patchRenderService(core._renderService);
-            if (core.mouseService) patchMouseService(core.mouseService, core);
-          } catch (e) {}
-        };
-      }
     } catch (e) {
-      console.warn('Deep xterm safety patch failed', e);
+      console.warn('xterm safety patch failed', e);
     }
-    
+
     term.open(terminalRef.current);
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Use a ResizeObserver with layout validation
-    const resizeObserver = new ResizeObserver(() => {
-      if (!terminalRef.current || terminalRef.current.clientWidth === 0) return;
-      
-      requestAnimationFrame(() => {
-        if (xtermRef.current && fitAddonRef.current) {
-          try {
-            // Only fit if the terminal has a valid internal size
-            const hasSize = xtermRef.current._core?._charSizeService?.hasValidSize;
-            if (hasSize && xtermRef.current.element) {
-              fitAddonRef.current.fit();
-              
-              // Notify backend about the new terminal size
-              if (socket && xtermRef.current.cols && xtermRef.current.rows) {
-                socket.emit('terminal_resize', {
-                  cols: xtermRef.current.cols,
-                  rows: xtermRef.current.rows
-                });
-              }
-            }
-          } catch (e) {}
-        }
-      });
-    });
-    
-    resizeObserver.observe(terminalRef.current);
+    // Command line state
+    let currentLine = '';
+    const commandHistory = [];
+    let historyIndex = -1;
+    let isExecuting = false;
 
+    // Welcome message
+    term.writeln('\x1b[1;36m╔═══════════════════════════════════════╗\x1b[0m');
+    term.writeln('\x1b[1;36m║      \x1b[1;32mFlux IDE Terminal v2.0\x1b[1;36m       ║\x1b[0m');
+    term.writeln('\x1b[1;36m╚═══════════════════════════════════════╝\x1b[0m');
+    term.writeln('');
+    term.writeln('\x1b[2mType "help" for available commands.\x1b[0m');
+    term.writeln('');
+    term.write('$ ');
+
+    // Handle user input with command line support
     const dataDisposable = term.onData(data => {
-      if (socket) {
-        socket.emit('terminal_input', { input: data });
+      if (isExecuting) return;
+
+      const code = data.charCodeAt(0);
+
+      if (code === 13) {
+        // Enter key - execute command
+        term.write('\r\n');
+        if (currentLine.trim()) {
+          commandHistory.push(currentLine);
+          historyIndex = commandHistory.length;
+
+          // Send command to backend
+          if (socket && socket.connected) {
+            isExecuting = true;
+            socket.emit('terminal_command', { command: currentLine });
+          } else {
+            term.writeln('\x1b[1;31m✗ Error: Not connected to server\x1b[0m');
+            term.write('$ ');
+          }
+        } else {
+          term.write('$ ');
+        }
+        currentLine = '';
+      } else if (code === 127) {
+        // Backspace
+        if (currentLine.length > 0) {
+          currentLine = currentLine.slice(0, -1);
+          term.write('\b \b');
+        }
+      } else if (code === 27) {
+        // Escape sequences (arrow keys)
+        if (data === '\x1b[A') {
+          // Up arrow - previous command
+          if (historyIndex > 0) {
+            historyIndex--;
+            term.write('\r\x1b[K$ ');
+            currentLine = commandHistory[historyIndex];
+            term.write(currentLine);
+          }
+        } else if (data === '\x1b[B') {
+          // Down arrow - next command
+          if (historyIndex < commandHistory.length - 1) {
+            historyIndex++;
+            term.write('\r\x1b[K$ ');
+            currentLine = commandHistory[historyIndex];
+            term.write(currentLine);
+          } else if (historyIndex === commandHistory.length - 1) {
+            historyIndex = commandHistory.length;
+            term.write('\r\x1b[K$ ');
+            currentLine = '';
+          }
+        }
+      } else if (code >= 32 && code <= 126) {
+        // Printable characters
+        currentLine += data;
+        term.write(data);
+      } else if (code === 3) {
+        // Ctrl+C
+        term.write('^C\r\n$ ');
+        currentLine = '';
+        isExecuting = false;
+      } else if (code === 12) {
+        // Ctrl+L (clear)
+        term.clear();
+        term.write('$ ');
+        currentLine = '';
       }
-      if (onData) onData(data);
     });
 
+    // Handle terminal output from server
     const handleOutput = (data) => {
-      if (term) {
-        term.write(data.output);
+      isExecuting = false;
+      if (term && data.output) {
+        if (data.output === '\x1b[2J\x1b[H') {
+          term.clear();
+        } else {
+          term.write(data.output);
+        }
+        term.write('$ ');
       }
     };
 
@@ -173,14 +169,50 @@ const Terminal = ({ onData, socket }) => {
       socket.on('terminal_output', handleOutput);
     }
 
-    // Initial fit attempt after a short delay
+    // ResizeObserver for responsive fitting
+    const resizeObserver = new ResizeObserver(() => {
+      if (!terminalRef.current || terminalRef.current.clientWidth === 0) return;
+      requestAnimationFrame(() => {
+        if (xtermRef.current && fitAddonRef.current) {
+          try {
+            const hasSize = xtermRef.current._core?._charSizeService?.hasValidSize;
+            if (hasSize && xtermRef.current.element) {
+              fitAddonRef.current.fit();
+              if (socket && xtermRef.current.cols && xtermRef.current.rows) {
+                socket.emit('terminal_resize', {
+                  cols: xtermRef.current.cols,
+                  rows: xtermRef.current.rows
+                });
+              }
+            }
+          } catch (e) { }
+        }
+      });
+    });
+
+    resizeObserver.observe(terminalRef.current);
+
+    // Initial fit
     const initialFit = setTimeout(() => {
       if (fitAddonRef.current && xtermRef.current?.element) {
         try {
           fitAddonRef.current.fit();
-        } catch (e) {}
+          // Focus terminal automatically
+          xtermRef.current.focus();
+        } catch (e) { }
       }
     }, 100);
+
+    // Focus terminal on click
+    const focusHandler = () => {
+      if (xtermRef.current) {
+        xtermRef.current.focus();
+      }
+    };
+
+    if (terminalRef.current) {
+      terminalRef.current.addEventListener('click', focusHandler);
+    }
 
     return () => {
       clearTimeout(initialFit);
@@ -189,17 +221,20 @@ const Terminal = ({ onData, socket }) => {
       if (socket) {
         socket.off('terminal_output', handleOutput);
       }
+      if (terminalRef.current) {
+        terminalRef.current.removeEventListener('click', focusHandler);
+      }
       term.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [socket, onData]);
+  }, [socket]); // Only depend on socket, not onData!
 
   return (
-    <div 
-      ref={terminalRef} 
+    <div
+      ref={terminalRef}
       className="w-full h-full min-h-[200px] overflow-hidden bg-[#0a0a0a]"
-      style={{ padding: '8px' }}
+      style={{ padding: '8px', cursor: 'text' }}
     />
   );
 };

@@ -15,7 +15,7 @@ export const Terminal = ({ socket, isVisible }) => {
     const term = new XTerm({
       cursorBlink: true,
       fontSize: 14,
-      fontFamily: 'JetBrains Mono, monospace',
+      fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
       theme: {
         background: '#0a0a0a',
         foreground: '#E5E5E5',
@@ -39,6 +39,12 @@ export const Terminal = ({ socket, isVisible }) => {
       },
       cols: 80,
       rows: 24,
+      scrollback: 10000,
+      allowTransparency: true,
+      cursorStyle: 'block',
+      fontWeight: 'normal',
+      fontWeightBold: 'bold',
+      lineHeight: 1.2,
     });
 
     const fitAddon = new FitAddon();
@@ -51,16 +57,23 @@ export const Terminal = ({ socket, isVisible }) => {
     fitAddonRef.current = fitAddon;
 
     // Welcome message
-    term.writeln('\x1b[1;32mFlux IDE Terminal\x1b[0m');
-    term.writeln('Type "help" for available commands.\n');
+    term.writeln('\x1b[1;36m╔═══════════════════════════════════════╗\x1b[0m');
+    term.writeln('\x1b[1;36m║      \x1b[1;32mFlux IDE Terminal v2.0\x1b[1;36m       ║\x1b[0m');
+    term.writeln('\x1b[1;36m╚═══════════════════════════════════════╝\x1b[0m');
+    term.writeln('');
+    term.writeln('\x1b[2mType "help" for available commands.\x1b[0m');
+    term.writeln('');
     term.write('$ ');
 
     let currentLine = '';
     const commandHistory = [];
     let historyIndex = -1;
+    let isExecuting = false;
 
     // Handle user input
     term.onData((data) => {
+      if (isExecuting) return;
+
       const code = data.charCodeAt(0);
 
       if (code === 13) {
@@ -69,13 +82,14 @@ export const Terminal = ({ socket, isVisible }) => {
         if (currentLine.trim()) {
           commandHistory.push(currentLine);
           historyIndex = commandHistory.length;
-          
+
           // Send command to backend
           if (socket && socket.connected) {
+            isExecuting = true;
             socket.emit('terminal_command', { command: currentLine });
           } else {
             // Fallback if not connected
-            term.writeln('\x1b[1;31mError: Not connected to server\x1b[0m');
+            term.writeln('\x1b[1;31m✗ Error: Not connected to server\x1b[0m');
             term.write('$ ');
           }
         } else {
@@ -112,21 +126,41 @@ export const Terminal = ({ socket, isVisible }) => {
             term.write('\r\x1b[K$ ');
             currentLine = '';
           }
+        } else if (data === '\x1b[C') {
+          // Right arrow - ignore for now
+        } else if (data === '\x1b[D') {
+          // Left arrow - ignore for now
         }
       } else if (code >= 32 && code <= 126) {
         // Printable characters
         currentLine += data;
         term.write(data);
+      } else if (code === 3) {
+        // Ctrl+C
+        term.write('^C\r\n$ ');
+        currentLine = '';
+        isExecuting = false;
+      } else if (code === 12) {
+        // Ctrl+L (clear)
+        term.clear();
+        term.write('$ ');
+        currentLine = '';
       }
     });
 
     // Handle terminal output from server
     const handleTerminalOutput = (data) => {
+      isExecuting = false;
+
       if (data.output === '\x1b[2J\x1b[H') {
         term.clear();
         term.write('$ ');
       } else {
-        term.write(data.output);
+        // Write the output
+        if (data.output) {
+          term.write(data.output);
+        }
+        // Show prompt
         term.write('$ ');
       }
     };
@@ -139,9 +173,20 @@ export const Terminal = ({ socket, isVisible }) => {
     const handleResize = () => {
       if (fitAddonRef.current) {
         fitAddonRef.current.fit();
+
+        // Notify server of new dimensions
+        if (socket && xtermRef.current) {
+          socket.emit('terminal_resize', {
+            cols: xtermRef.current.cols,
+            rows: xtermRef.current.rows
+          });
+        }
       }
     };
     window.addEventListener('resize', handleResize);
+
+    // Initial resize
+    setTimeout(() => handleResize(), 100);
 
     return () => {
       window.removeEventListener('resize', handleResize);
@@ -160,6 +205,7 @@ export const Terminal = ({ socket, isVisible }) => {
         height: '100%',
         padding: '8px',
         display: isVisible ? 'block' : 'none',
+        background: '#0a0a0a',
       }}
       data-testid="terminal"
     />

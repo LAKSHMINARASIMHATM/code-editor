@@ -2,18 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import io from 'socket.io-client';
 import { executeCode, extractVariables } from '../utils/codeExecution';
-import { 
-  Play, Pause, SkipForward, CornerDownRight, CornerUpLeft, 
-  RotateCcw, Square, Circle, FileText, FolderOpen, 
+import {
+  Play, Pause, SkipForward, CornerDownRight, CornerUpLeft,
+  RotateCcw, Square, Circle, FileText, FolderOpen,
   Users, Activity, Zap, Clock, Settings,
   Terminal, Code2, Upload, Download, Save, Plus, Scissors, Copy, ClipboardPaste as Paste, Undo, Redo,
   Layout, Monitor, Maximize, Bug, PlayCircle
 } from 'lucide-react';
 import TerminalComponent from './Terminal/Terminal';
-import 'xterm/css/xterm.css';
+import '@xterm/xterm/css/xterm.css';
 
-const SOCKET_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:8000' 
+const SOCKET_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
   : `https://${window.location.hostname.replace('5000', '8000')}`;
 
 const FILE_STRUCTURE = [
@@ -45,7 +45,7 @@ export const FluxIDE = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [executionLine, setExecutionLine] = useState(null);
-  
+
   // Menu and Modal States
   const [activeMenu, setActiveMenu] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -79,7 +79,7 @@ export const FluxIDE = () => {
     reader.onload = (e) => {
       const content = e.target.result;
       const fileName = file.name;
-      
+
       let lang = 'javascript';
       if (fileName.endsWith('.py')) lang = 'python';
       else if (fileName.endsWith('.tsx') || fileName.endsWith('.ts')) lang = 'typescript';
@@ -117,22 +117,26 @@ export const FluxIDE = () => {
   // Menu Handlers
   const menuItems = {
     File: [
-      { label: 'New File', icon: Plus, action: () => {
-        const name = `file_${fileList.length + 1}.js`;
-        setFiles(prev => ({ ...prev, [name]: '// New file\n' }));
-        setFileList(prev => [...prev, { name, language: 'javascript', icon: FileText }]);
-        setActiveFile(name);
-      }},
+      {
+        label: 'New File', icon: Plus, action: () => {
+          const name = `file_${fileList.length + 1}.js`;
+          setFiles(prev => ({ ...prev, [name]: '// New file\n' }));
+          setFileList(prev => [...prev, { name, language: 'javascript', icon: FileText }]);
+          setActiveFile(name);
+        }
+      },
       { label: 'Open File', icon: FolderOpen, action: triggerFileUpload },
       { label: 'Save', icon: Save, action: () => setConsoleOutput(prev => [...prev, { type: 'success', message: `Saved ${activeFile}`, timestamp: Date.now() }]) },
-      { label: 'Download', icon: Download, action: () => {
-        const blob = new Blob([files[activeFile]], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = activeFile;
-        a.click();
-      }}
+      {
+        label: 'Download', icon: Download, action: () => {
+          const blob = new Blob([files[activeFile]], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = activeFile;
+          a.click();
+        }
+      }
     ],
     Edit: [
       { label: 'Undo', icon: Undo, action: () => editorRef.current?.trigger('keyboard', 'undo', {}) },
@@ -157,13 +161,22 @@ export const FluxIDE = () => {
   useEffect(() => {
     const socket = io(SOCKET_URL, {
       path: '/socket.io',
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 3
     });
     socketRef.current = socket;
 
     socket.on('connect', () => {
       console.log('Connected to collaboration server');
       socket.emit('join_session', { name: `User-${Math.floor(Math.random() * 1000)}` });
+    });
+
+    socket.on('connect_error', (error) => {
+      // Silently handle connection errors when backend is not available
+      console.warn('Collaboration server not available - running in offline mode');
     });
 
     socket.on('session_joined', (data) => {
@@ -195,7 +208,7 @@ export const FluxIDE = () => {
     });
 
     socket.on('typing_update', (data) => {
-      setUsers(prev => prev.map(u => 
+      setUsers(prev => prev.map(u =>
         u.id === data.userId ? { ...u, isTyping: data.isTyping } : u
       ));
     });
@@ -211,23 +224,22 @@ export const FluxIDE = () => {
     };
   }, [activeFile]);
 
-  const handleTerminalData = (data) => {
-    if (socketRef.current) {
-      socketRef.current.emit('terminal_input', { input: data });
-    }
-  };
-
-  // Sync cursor position
+  // Sync cursor position with collaboration
   useEffect(() => {
-    if (!editorRef.current || !socketRef.current) return;
+    if (!editorRef.current || !socketRef.current?.connected) return;
 
     const disposable = editorRef.current.onDidChangeCursorPosition((e) => {
-      socketRef.current.emit('cursor_move', {
-        cursor: { line: e.position.lineNumber, column: e.position.column }
-      });
+      if (e.position && socketRef.current?.connected) {
+        socketRef.current.emit('cursor_move', {
+          cursor: {
+            line: e.position.lineNumber || 1,
+            column: e.position.column || 1
+          }
+        });
+      }
     });
 
-    return () => disposable.dispose();
+    return () => disposable?.dispose();
   }, [activeFile]);
 
   const handleEditorChange = (value) => {
@@ -239,7 +251,7 @@ export const FluxIDE = () => {
         operation: 'update'
       });
       socketRef.current.emit('typing_status', { isTyping: true });
-      
+
       clearTimeout(window.typingTimeout);
       window.typingTimeout = setTimeout(() => {
         if (socketRef.current) {
@@ -260,35 +272,47 @@ export const FluxIDE = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Track decorations with a ref
+  const decorationIdsRef = useRef([]);
+
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current) return;
 
+    const model = editorRef.current.getModel();
+    if (!model) return;
+
     const decorations = [];
     breakpoints.forEach(line => {
-      decorations.push({
-        range: new monacoRef.current.Range(line, 1, line, 1),
-        options: {
-          isWholeLine: false,
-          glyphMarginClassName: 'breakpoint-decoration',
-          glyphMarginHoverMessage: { value: 'Breakpoint' }
-        }
-      });
+      const lineCount = model.getLineCount();
+      if (line > 0 && line <= lineCount) {
+        decorations.push({
+          range: new monacoRef.current.Range(line, 1, line, 1),
+          options: {
+            isWholeLine: false,
+            glyphMarginClassName: 'breakpoint-decoration',
+            glyphMarginHoverMessage: { value: 'Breakpoint' }
+          }
+        });
+      }
     });
 
     if (executionLine) {
-      decorations.push({
-        range: new monacoRef.current.Range(executionLine, 1, executionLine, 1),
-        options: {
-          isWholeLine: true,
-          className: 'execution-line-decoration',
-          glyphMarginClassName: 'execution-point-decoration'
-        }
-      });
+      const lineCount = model.getLineCount();
+      if (executionLine > 0 && executionLine <= lineCount) {
+        decorations.push({
+          range: new monacoRef.current.Range(executionLine, 1, executionLine, 1),
+          options: {
+            isWholeLine: true,
+            className: 'execution-line-decoration',
+            glyphMarginClassName: 'execution-point-decoration'
+          }
+        });
+      }
     }
 
-    const oldDecorations = editorRef.current.getModel()._decorations || [];
-    editorRef.current.getModel()._decorations = editorRef.current.deltaDecorations(
-      oldDecorations,
+    // Use ref to track decoration IDs properly
+    decorationIdsRef.current = editorRef.current.deltaDecorations(
+      decorationIdsRef.current,
       decorations
     );
   }, [breakpoints, executionLine, activeFile]);
@@ -352,22 +376,52 @@ export const FluxIDE = () => {
     setIsRunning(true);
     setIsPaused(false);
     setExecutionLine(null);
-    
-    if (socketRef.current) {
+
+    if (socketRef.current && socketRef.current.connected) {
       const code = files[activeFile];
-      // Map language to command
-      let command = '';
-      if (language === 'javascript') command = `node -e '${code.replace(/'/g, "'\\''")}'`;
-      else if (language === 'python') command = `python3 -c '${code.replace(/'/g, "'\\''")}'`;
-      else if (language === 'typescript') command = `ts-node -e '${code.replace(/'/g, "'\\''")}'`;
-      
-      if (command) {
-        socketRef.current.emit('terminal_input', { input: `${command}\n` });
-      }
+
+      // Execute code locally
+      const { output, errors } = executeCode(code, language);
+
+      // Send start message
+      socketRef.current.emit('terminal_command', {
+        command: `echo "✓ Running ${activeFile} (${language})..."`
+      });
+
+      // Send output messages with slight delay to ensure order
+      output.forEach((log, index) => {
+        setTimeout(() => {
+          // Escape quotes for echo command
+          const safeMessage = log.message.replace(/"/g, '\\"').replace(/\n/g, ' ');
+          socketRef.current.emit('terminal_command', {
+            command: `echo "${safeMessage}"`
+          });
+        }, 100 + (index * 50));
+      });
+
+      // Send error messages
+      errors.forEach((err, index) => {
+        setTimeout(() => {
+          const safeMessage = err.message.replace(/"/g, '\\"').replace(/\n/g, ' ');
+          socketRef.current.emit('terminal_command', {
+            command: `echo "\x1b[31mError: ${safeMessage}\x1b[0m"`
+          });
+        }, 100 + (output.length * 50) + (index * 50));
+      });
+
+      setConsoleOutput(prev => [...prev, {
+        type: 'info',
+        message: `Executed ${activeFile}`,
+        timestamp: Date.now()
+      }]);
+    } else {
+      setConsoleOutput(prev => [...prev, {
+        type: 'error',
+        message: 'Not connected to server',
+        timestamp: Date.now()
+      }]);
     }
-    
-    setConsoleOutput(prev => [...prev, { type: 'info', message: `Executing ${activeFile} in terminal...`, timestamp: Date.now() }]);
-    
+
     setTimeout(() => {
       setIsRunning(false);
     }, 1000);
@@ -424,8 +478,8 @@ export const FluxIDE = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-neutral-400">Font Size</span>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   className="w-20 rounded bg-white/5 border border-white/10 p-1 text-white"
                   value={settings.fontSize}
                   onChange={(e) => setSettings(s => ({ ...s, fontSize: parseInt(e.target.value) }))}
@@ -433,7 +487,7 @@ export const FluxIDE = () => {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-neutral-400">Minimap</span>
-                <button 
+                <button
                   onClick={() => setSettings(s => ({ ...s, minimap: !s.minimap }))}
                   className={`w-12 h-6 rounded-full transition-colors ${settings.minimap ? 'bg-orange-500' : 'bg-neutral-800'}`}
                 >
@@ -441,7 +495,7 @@ export const FluxIDE = () => {
                 </button>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => setIsSettingsOpen(false)}
               className="mt-6 w-full rounded bg-orange-500 py-2 font-bold text-white hover:bg-orange-600"
             >
@@ -461,7 +515,7 @@ export const FluxIDE = () => {
           <nav className="flex gap-4 text-sm text-neutral-400 relative">
             {Object.entries(menuItems).map(([menu, items]) => (
               <div key={menu} className="relative">
-                <button 
+                <button
                   className={`hover:text-white transition-colors ${activeMenu === menu ? 'text-white' : ''}`}
                   onClick={() => setActiveMenu(activeMenu === menu ? null : menu)}
                 >
@@ -489,7 +543,7 @@ export const FluxIDE = () => {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <button 
+          <button
             className="flex items-center gap-2 rounded-md bg-orange-500 px-3 py-1.5 text-sm font-bold text-white hover:bg-orange-600 transition-all hover:scale-105 active:scale-95 shadow-[0_0_15px_rgba(249,115,22,0.3)]"
             onClick={handleRunCode}
             disabled={isRunning}
@@ -501,8 +555,8 @@ export const FluxIDE = () => {
             <Activity size={16} className="text-emerald-500" />
             <span data-testid="session-users">{users.length}/100 users</span>
           </div>
-          <button 
-            className="hover:text-white transition-colors" 
+          <button
+            className="hover:text-white transition-colors"
             onClick={() => setIsSettingsOpen(true)}
           >
             <Settings size={18} />
@@ -583,9 +637,8 @@ export const FluxIDE = () => {
           <div className="panel-section" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
             <div className="panel-title flex items-center gap-2"><Terminal size={14} /><span>TERMINAL</span></div>
             <div style={{ height: '200px', overflow: 'hidden' }}>
-              <TerminalComponent 
-                onData={handleTerminalData} 
-                socket={socketRef.current} 
+              <TerminalComponent
+                socket={socketRef.current}
               />
             </div>
           </div>
