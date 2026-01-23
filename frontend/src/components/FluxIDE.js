@@ -10,36 +10,26 @@ import {
   Layout, Monitor, Maximize, Bug, PlayCircle
 } from 'lucide-react';
 import TerminalComponent from './Terminal/Terminal';
+import FileTree from './FileTree';
+import Chat from './Chat';
+import './FileTree/FileTree.css';
 import '@xterm/xterm/css/xterm.css';
 
 const SOCKET_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
   : `https://${window.location.hostname.replace('5000', '8000')}`;
 
-const FILE_STRUCTURE = [
-  { name: 'main.js', language: 'javascript', icon: FileText },
-  { name: 'utils.py', language: 'python', icon: FileText },
-  { name: 'App.tsx', language: 'typescript', icon: FileText },
-  { name: 'styles.css', language: 'css', icon: FileText },
-  { name: 'README.md', language: 'markdown', icon: FileText },
-];
-
-const INITIAL_CODE = {
-  'main.js': `function calculateSum(a, b) {\n  const result = a + b;\n  console.log("Result:", result);\n  return result;\n}\n\nconst numbers = [1, 2, 3, 4, 5];\nconst doubled = numbers.map(n => n * 2);\nconsole.log("Doubled:", doubled);\n\n// Collaborative IDE Demo\n`,
-  'utils.py': `def calculate_sum(a, b):\n    result = a + b\n    print(f"Result: {result}")\n    return result\n\nnumbers = [1, 2, 3, 4, 5]\ndoubled = [n * 2 for n in numbers]\nprint(f"Doubled: {doubled}")\n`,
-  'App.tsx': `import React from 'react';\n\ninterface Props {\n  name: string;\n}\n\nconst App: React.FC<Props> = ({ name }) => {\n  return (\n    <div>\n      <h1>Hello, {name}!</h1>\n    </div>\n  );\n};\n\nexport default App;\n`,
-  'styles.css': `.container {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  min-height: 100vh;\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n}\n`,
-  'README.md': `# Flux IDE\n\nA production-grade collaborative code editor.\n\n## Features\n- Multi-language syntax highlighting\n- Real-time collaboration\n- Intelligent code completion\n- Live debugging\n`,
-};
+const INITIAL_CODE = {};
+const FILE_STRUCTURE = [];
 
 export const FluxIDE = () => {
-  const [activeFile, setActiveFile] = useState('main.js');
-  const [files, setFiles] = useState(INITIAL_CODE);
-  const [fileList, setFileList] = useState(FILE_STRUCTURE);
+  const [activeFile, setActiveFile] = useState('');
+  const [files, setFiles] = useState({});
+  const [fileList, setFileList] = useState([]);
   const [language, setLanguage] = useState('javascript');
-  const [breakpoints, setBreakpoints] = useState(new Set([2]));
+  const [breakpoints, setBreakpoints] = useState(new Set());
   const [consoleOutput, setConsoleOutput] = useState([
-    { type: 'success', message: 'IDE initialized successfully', timestamp: Date.now() }
+    { type: 'info', message: 'Welcome to Flux IDE. Open a folder to get started.', timestamp: Date.now() }
   ]);
   const [watchedVars, setWatchedVars] = useState({});
   const [isRunning, setIsRunning] = useState(false);
@@ -57,6 +47,7 @@ export const FluxIDE = () => {
   });
 
   const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
   const fitAddonRef = useRef(null);
@@ -72,37 +63,67 @@ export const FluxIDE = () => {
   const [sessionLatency, setSessionLatency] = useState(42);
 
   const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+    const uploadedFiles = Array.from(event.target.files);
+    if (uploadedFiles.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target.result;
-      const fileName = file.name;
+    const newFiles = {};
+    const newFileList = [];
+    let firstFile = '';
 
-      let lang = 'javascript';
-      if (fileName.endsWith('.py')) lang = 'python';
-      else if (fileName.endsWith('.tsx') || fileName.endsWith('.ts')) lang = 'typescript';
-      else if (fileName.endsWith('.css')) lang = 'css';
-      else if (fileName.endsWith('.md')) lang = 'markdown';
-      else if (fileName.endsWith('.html')) lang = 'html';
-      else if (fileName.endsWith('.json')) lang = 'json';
+    let processedCount = 0;
 
-      setFiles(prev => ({ ...prev, [fileName]: content }));
-      setFileList(prev => {
-        if (prev.find(f => f.name === fileName)) return prev;
-        return [...prev, { name: fileName, language: lang, icon: FileText }];
-      });
-      setActiveFile(fileName);
-      setLanguage(lang);
-      setConsoleOutput(prev => [...prev, { type: 'success', message: `Imported local file: ${fileName}`, timestamp: Date.now() }]);
-    };
-    reader.readAsText(file);
+    uploadedFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target.result;
+        // Use webkitRelativePath for folders, or name for single files
+        const filePath = file.webkitRelativePath || file.name;
+
+        // Skip hidden files or node_modules for performance
+        if (filePath.includes('node_modules') || filePath.startsWith('.')) {
+          processedCount++;
+          return;
+        }
+
+        let lang = 'javascript';
+        if (filePath.endsWith('.py')) lang = 'python';
+        else if (filePath.endsWith('.tsx') || filePath.endsWith('.ts')) lang = 'typescript';
+        else if (filePath.endsWith('.css')) lang = 'css';
+        else if (filePath.endsWith('.md')) lang = 'markdown';
+        else if (filePath.endsWith('.html')) lang = 'html';
+        else if (filePath.endsWith('.json')) lang = 'json';
+        else if (filePath.endsWith('.jsx')) lang = 'javascript';
+
+        newFiles[filePath] = content;
+        newFileList.push({ name: filePath, language: lang, icon: FileText });
+
+        if (!firstFile && (lang === 'javascript' || lang === 'python' || lang === 'typescript')) {
+          firstFile = filePath;
+        } else if (!firstFile) {
+          firstFile = filePath;
+        }
+
+        processedCount++;
+        if (processedCount === uploadedFiles.length) {
+          setFiles(prev => ({ ...prev, ...newFiles }));
+          setFileList(prev => [...prev, ...newFileList].sort((a, b) => a.name.localeCompare(b.name)));
+          if (firstFile && !activeFile) {
+            setActiveFile(firstFile);
+            const fileInfo = newFileList.find(f => f.name === firstFile);
+            if (fileInfo) setLanguage(fileInfo.language);
+          }
+          setConsoleOutput(prev => [...prev, { type: 'success', message: `Loaded ${Object.keys(newFiles).length} files`, timestamp: Date.now() }]);
+        }
+      };
+      reader.readAsText(file);
+    });
     setActiveMenu(null);
   };
 
-  const triggerFileUpload = () => {
-    fileInputRef.current?.click();
+  const triggerFolderUpload = () => {
+    if (folderInputRef.current) {
+      folderInputRef.current.click();
+    }
     setActiveMenu(null);
   };
 
@@ -112,6 +133,13 @@ export const FluxIDE = () => {
     if (file) {
       setLanguage(file.language);
     }
+  };
+
+  const triggerFileUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+    setActiveMenu(null);
   };
 
   // Menu Handlers
@@ -165,13 +193,25 @@ export const FluxIDE = () => {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 3
+      reconnectionAttempts: Infinity
     });
     socketRef.current = socket;
 
     socket.on('connect', () => {
       console.log('Connected to collaboration server');
-      socket.emit('join_session', { name: `User-${Math.floor(Math.random() * 1000)}` });
+
+      let initialCursor = { lineNumber: 1, column: 1 };
+      if (editorRef.current) {
+        const pos = editorRef.current.getPosition();
+        if (pos) {
+          initialCursor = { lineNumber: pos.lineNumber, column: pos.column };
+        }
+      }
+
+      socket.emit('join_session', {
+        name: `User-${Math.floor(Math.random() * 1000)}`,
+        cursor: initialCursor
+      });
     });
 
     socket.on('connect_error', (error) => {
@@ -205,6 +245,10 @@ export const FluxIDE = () => {
         ...prev,
         [data.userId]: data.cursor
       }));
+      // Also update the user's position in the users list for the sidebar
+      setUsers(prev => prev.map(u =>
+        u.id === data.userId ? { ...u, cursor: data.cursor } : u
+      ));
     });
 
     socket.on('typing_update', (data) => {
@@ -230,12 +274,19 @@ export const FluxIDE = () => {
 
     const disposable = editorRef.current.onDidChangeCursorPosition((e) => {
       if (e.position && socketRef.current?.connected) {
+        const newCursor = {
+          lineNumber: e.position.lineNumber,
+          column: e.position.column
+        };
+
         socketRef.current.emit('cursor_move', {
-          cursor: {
-            line: e.position.lineNumber || 1,
-            column: e.position.column || 1
-          }
+          cursor: newCursor
         });
+
+        // Update local user position in sidebar immediately
+        setUsers(prev => prev.map(u =>
+          u.isLocal ? { ...u, cursor: newCursor } : u
+        ));
       }
     });
 
@@ -276,7 +327,7 @@ export const FluxIDE = () => {
   const decorationIdsRef = useRef([]);
 
   useEffect(() => {
-    if (!editorRef.current || !monacoRef.current) return;
+    if (!editorRef.current || !monacoRef.current || !activeFile) return;
 
     const model = editorRef.current.getModel();
     if (!model) return;
@@ -310,12 +361,39 @@ export const FluxIDE = () => {
       }
     }
 
+    // Add remote cursor decorations
+    Object.entries(remoteCursors).forEach(([userId, cursor]) => {
+      const user = users.find(u => u.id === userId);
+      if (user && cursor && cursor.lineNumber && cursor.column) {
+        // Cursor position decoration
+        decorations.push({
+          range: new monacoRef.current.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column),
+          options: {
+            className: `remote-cursor user-${userId}`,
+            glyphMarginClassName: `remote-cursor-glyph user-${userId}`,
+            hoverMessage: { value: `User: ${user.name}` }
+          }
+        });
+
+        // Name tag decoration (using afterContentClassName)
+        decorations.push({
+          range: new monacoRef.current.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column),
+          options: {
+            after: {
+              content: user.name,
+              inlineClassName: `remote-cursor-label user-label-${userId}`
+            }
+          }
+        });
+      }
+    });
+
     // Use ref to track decoration IDs properly
     decorationIdsRef.current = editorRef.current.deltaDecorations(
       decorationIdsRef.current,
       decorations
     );
-  }, [breakpoints, executionLine, activeFile]);
+  }, [breakpoints, executionLine, activeFile, remoteCursors, users]);
 
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -574,17 +652,29 @@ export const FluxIDE = () => {
               <span>FILES</span>
             </div>
             <div className="file-tree">
-              <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} accept=".js,.py,.tsx,.ts,.css,.md,.html,.json" />
-              <button className="file-item w-full flex items-center gap-2 mb-2 p-2 rounded hover:bg-white/5 text-orange-500 border border-orange-500/30 transition-colors" onClick={triggerFileUpload}>
-                <Upload size={16} />
-                <span>Import Local File</span>
-              </button>
-              {fileList.map((file) => (
-                <div key={file.name} className={`file-item ${activeFile === file.name ? 'active' : ''}`} onClick={() => changeFile(file.name)}>
-                  <file.icon size={16} />
-                  <span>{file.name}</span>
+              <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} multiple />
+              <input type="file" ref={folderInputRef} onChange={handleFileUpload} style={{ display: 'none' }} webkitdirectory="" directory="" multiple />
+
+              <div className="flex gap-2 mb-2">
+                <button className="flex-1 flex items-center justify-center gap-2 p-2 rounded hover:bg-white/5 text-orange-500 border border-orange-500/30 transition-colors" onClick={triggerFolderUpload}>
+                  <FolderOpen size={16} />
+                  <span>Open Folder</span>
+                </button>
+                <button className="flex items-center justify-center p-2 rounded hover:bg-white/5 text-neutral-400 border border-white/10 transition-colors" onClick={triggerFileUpload} title="Open File">
+                  <FileText size={16} />
+                </button>
+              </div>
+              {fileList.length > 0 ? (
+                <FileTree
+                  files={fileList}
+                  activeFile={activeFile}
+                  onFileClick={changeFile}
+                />
+              ) : (
+                <div className="text-neutral-500 text-xs text-center py-4">
+                  No folder opened
                 </div>
-              ))}
+              )}
             </div>
           </div>
           <div className="panel-section">
@@ -607,36 +697,68 @@ export const FluxIDE = () => {
         </div>
 
         {/* Center - Editor */}
-        <div className="ide-editor-container">
-          <div className="ide-tabs">
-            {fileList.map((file) => (
-              <button key={file.name} className={`ide-tab ${activeFile === file.name ? 'active' : ''}`} onClick={() => changeFile(file.name)}>
-                <file.icon size={14} /><span>{file.name}</span>
-              </button>
-            ))}
+        {/* Center Column - Editor & Terminal */}
+        <div className="ide-center-column">
+          <div className="ide-editor-container">
+            <div className="ide-tabs">
+              {fileList.map((file) => (
+                <button key={file.name} className={`ide-tab ${activeFile === file.name ? 'active' : ''}`} onClick={() => changeFile(file.name)}>
+                  <file.icon size={14} /><span>{file.name}</span>
+                </button>
+              ))}
+            </div>
+            <div className="ide-editor-wrapper">
+              {activeFile ? (
+                <Editor
+                  height="100%"
+                  language={language}
+                  value={files[activeFile]}
+                  onChange={handleEditorChange}
+                  onMount={handleEditorDidMount}
+                  options={{
+                    fontSize: settings.fontSize,
+                    theme: settings.theme === 'flux-dark' ? 'vs-dark' : 'light',
+                    minimap: { enabled: settings.minimap },
+                    wordWrap: settings.wordWrap,
+                    fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                    fontLigatures: true,
+                    cursorBlinking: 'smooth',
+                    cursorSmoothCaretAnimation: true,
+                    smoothScrolling: true,
+                    contextmenu: true,
+                    padding: { top: 16 },
+                  }}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-neutral-500">
+                  <div className="mb-4 p-4 rounded-full bg-white/5">
+                    <FolderOpen size={48} className="text-orange-500" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white mb-2">No Folder Open</h2>
+                  <p className="mb-6 max-w-md text-center">Open a local folder to start editing your project in Flux IDE.</p>
+                  <button
+                    className="flex items-center gap-2 px-6 py-3 rounded-md bg-orange-500 font-bold text-white hover:bg-orange-600 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-orange-500/20"
+                    onClick={triggerFolderUpload}
+                  >
+                    <FolderOpen size={20} />
+                    <span>Open Folder</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="ide-editor-wrapper">
-            <Editor
-              height="100%"
-              language={language}
-              value={files[activeFile]}
-              onChange={handleEditorChange}
-              onMount={handleEditorDidMount}
-              options={{
-                fontSize: settings.fontSize,
-                minimap: { enabled: settings.minimap },
-                wordWrap: settings.wordWrap,
-                fontFamily: 'JetBrains Mono, monospace',
-                lineNumbers: 'on',
-                glyphMargin: true,
-                automaticLayout: true,
-                tabSize: 2,
-              }}
-            />
-          </div>
-          <div className="panel-section" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-            <div className="panel-title flex items-center gap-2"><Terminal size={14} /><span>TERMINAL</span></div>
-            <div style={{ height: '200px', overflow: 'hidden' }}>
+
+          {/* Bottom Terminal Panel */}
+          <div className="ide-terminal-bottom" style={{
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            background: '#0a0a0a',
+            height: '250px'
+          }}>
+            <div className="panel-title flex items-center gap-2 px-4 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              <Terminal size={14} />
+              <span>TERMINAL</span>
+            </div>
+            <div style={{ height: 'calc(100% - 36px)', overflow: 'hidden' }}>
               <TerminalComponent
                 socket={socketRef.current}
               />
@@ -654,7 +776,9 @@ export const FluxIDE = () => {
                   <img src={user.avatar} alt={user.name} className="user-avatar" style={{ borderColor: user.color.color }} />
                   <div className="user-info">
                     <div className="flex items-center gap-2"><span className="font-medium text-white">{user.name}</span>{user.isTyping && <Zap size={10} className="text-orange-500 animate-pulse" />}</div>
-                    <div className="text-[10px] text-neutral-500">Line {user.cursor.line}, Col {user.cursor.column}</div>
+                    <div className="text-[10px] text-neutral-500">
+                      Line {user.cursor?.lineNumber || 1}, Col {user.cursor?.column ?? 0}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -666,6 +790,13 @@ export const FluxIDE = () => {
               <div className="stat-card"><div className="stat-label">LATENCY</div><div className="stat-value text-emerald-500">{Math.round(sessionLatency)}ms</div></div>
               <div className="stat-card"><div className="stat-label">OPS/SEC</div><div className="stat-value text-orange-500">{opsPerSecond}</div></div>
             </div>
+          </div>
+          <div className="panel-section">
+            <Chat
+              socket={socketRef.current}
+              currentUser={users.find(u => u.isLocal)}
+              users={users}
+            />
           </div>
         </div>
       </div>

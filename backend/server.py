@@ -62,12 +62,14 @@ async def join_session(sid, data):
     color = user_colors[len(active_users) % len(user_colors)]
     avatar = get_avatar_url(len(active_users))
     
+    initial_cursor = data.get('cursor', {'lineNumber': 1, 'column': 1})
+    
     active_users[sid] = {
         'id': sid,
         'name': user_name,
         'color': color,
         'avatar': avatar,
-        'cursor': {'line': 1, 'column': 0},
+        'cursor': initial_cursor,
         'isTyping': False
     }
     
@@ -134,7 +136,7 @@ async def disconnect(sid):
 @sio.event
 async def cursor_move(sid, data):
     if sid in active_users:
-        active_users[sid]['cursor'] = data.get('cursor', {'line': 1, 'column': 0})
+        active_users[sid]['cursor'] = data.get('cursor', {'lineNumber': 1, 'column': 0})
         await sio.emit('cursor_update', {
             'userId': sid, 
             'cursor': active_users[sid]['cursor']
@@ -157,6 +159,22 @@ async def code_change(sid, data):
         'file': data.get('file'),
         'content': data.get('content')
     }, skip_sid=sid)
+
+@sio.event
+async def chat_message(sid, data):
+    """Handle chat messages between collaborators"""
+    logger.info(f"Chat message from {sid}: {data.get('message', '')[:50]}")
+    
+    # Broadcast message to all users including sender
+    await sio.emit('chat_message', {
+        'userId': data.get('userId'),
+        'userName': data.get('userName'),
+        'userColor': data.get('userColor'),
+        'userAvatar': data.get('userAvatar'),
+        'message': data.get('message'),
+        'timestamp': data.get('timestamp')
+    })
+
 
 # Mount Socket.IO
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path='/socket.io')

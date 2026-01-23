@@ -56,12 +56,22 @@
   overflow-y: auto;
 }
 
+/* Center Column */
+.ide-center-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
 /* Editor Container */
 .ide-editor-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 /* Tabs */
@@ -352,8 +362,15 @@
 
 /* Animations */
 @keyframes pulse-typing {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .typing-indicator {
@@ -361,8 +378,16 @@
 }
 
 @keyframes cursor-blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
+
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .cursor-blink {
@@ -380,4 +405,51 @@
 
 .monaco-editor .monaco-editor-background {
   background: #0a0a0a !important;
+}
+
+/* Terminal Bottom Panel */
+.ide-terminal-bottom {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.stat-card {
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.375rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #A3A3A3;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Remote Cursors */
+.remote-cursor {
+  border-left: 2px solid #F97316;
+  background: rgba(249, 115, 22, 0.2);
+}
+
+.remote-cursor-label {
+  background: #F97316;
+  color: white;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  margin-left: 2px;
+  opacity: 0.8;
 }
