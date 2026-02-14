@@ -1,9 +1,14 @@
 import os
 import asyncio
 import logging
+from datetime import datetime
 import socketio
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import package management modules
 from filesystem.virtual_fs import VirtualFileSystem
@@ -16,6 +21,19 @@ from commands.executor import CommandExecutor
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Import AI service
+try:
+    from services.ai_service import AIService
+    from services.git_service import git_service
+    from services.auth_service import auth_service
+    ai_service = AIService()
+    AI_ENABLED = True
+    logger.info("✓ AI Assistant enabled (Hugging Face - Llama 3.1)")
+except Exception as e:
+    AI_ENABLED = False
+    ai_service = None
+    logger.warning(f"AI Assistant disabled: {str(e)}")
 
 # Create Socket.IO server
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
@@ -175,6 +193,168 @@ async def chat_message(sid, data):
         'timestamp': data.get('timestamp')
     })
 
+@sio.event
+async def extension_install(sid, data):
+    """Handle extension installation"""
+    extension = data.get('extension')
+    if not extension:
+        return
+
+    logger.info(f"Installing extension request from {sid}: {extension.get('name')}")
+    
+    # Path for storing extensions configuration
+    ext_config_path = ".flux/extensions.json"
+    
+    # Read existing extensions
+    current_config = await virtual_fs.read_json(ext_config_path) or {"extensions": []}
+    
+    # Check if already installed
+    existing = next((e for e in current_config['extensions'] if e['id'] == extension['id']), None)
+    if not existing:
+        current_config['extensions'].append({**extension, 'installedBy': sid, 'installedAt': str(datetime.now())})
+        await virtual_fs.write_json(ext_config_path, current_config)
+        
+        # Broadcast update to all clients
+        await sio.emit('extensions_update', {
+            'extensions': current_config['extensions']
+        })
+        
+        # Send detailed log to installer
+        await sio.emit('terminal_output', {
+            'output': f"\x1b[1;32m✓ Extension '{extension.get('name')}' installed successfully.\x1b[0m\n",
+            'success': True
+        }, to=sid)
+
+@sio.event
+async def extension_uninstall(sid, data):
+    """Handle extension uninstallation"""
+    ext_id = data.get('id')
+    if not ext_id:
+        return
+
+    logger.info(f"Uninstalling extension request from {sid}: {ext_id}")
+    
+    ext_config_path = ".flux/extensions.json"
+    current_config = await virtual_fs.read_json(ext_config_path)
+    
+    if current_config and 'extensions' in current_config:
+        # Filter out the extension
+        config_len = len(current_config['extensions'])
+        current_config['extensions'] = [e for e in current_config['extensions'] if e['id'] != ext_id]
+        
+        if len(current_config['extensions']) < config_len:
+            await virtual_fs.write_json(ext_config_path, current_config)
+            
+            # Broadcast update
+            await sio.emit('extensions_update', {
+                'extensions': current_config['extensions']
+            })
+            
+            await sio.emit('terminal_output', {
+                'output': f"\x1b[1;33m- Extension uninstalled.\x1b[0m\n",
+                'success': True
+            }, to=sid)
+
+@sio.event
+async def get_extensions(sid):
+    """Get list of installed extensions"""
+    ext_config_path = ".flux/extensions.json"
+    config = await virtual_fs.read_json(ext_config_path) or {"extensions": []}
+    await sio.emit('extensions_update', {
+        'extensions': config['extensions']
+    }, to=sid)
+
+@sio.event
+async def extension_search(sid, data):
+    """Handle extension search"""
+    query = data.get('query', '')
+    logger.info(f"Searching extensions for {sid}: {query}")
+    
+    # Search in NPM registry (simulated or real)
+    # If query is empty, registry_client.search returns all mock packages
+    results = await registry_client.search('npm', query)
+    
+    # Map results to extension format
+    extensions = []
+    for pkg in results:
+        extensions.append({
+            'id': pkg['name'].lower().replace(' ', '-'),
+            'name': pkg['name'],
+            'description': pkg.get('description', ''),
+            'version': pkg.get('version', 'latest'),
+            'author': pkg.get('author', 'Unknown'),
+            'category': pkg.get('category', 'productivity'),
+            'downloads': pkg.get('downloads', '0'),
+            'rating': pkg.get('rating', 0),
+            'icon': pkg.get('icon', '📦')
+        })
+        
+    await sio.emit('extension_search_results', {
+        'results': extensions
+    }, to=sid)
+
+@sio.event
+async def ai_promptize(sid, data):
+    """Improve user prompt using AI"""
+    prompt = data.get('prompt', '')
+    logger.info(f"AI promptize request from {sid}")
+    
+    if not AI_ENABLED:
+        await sio.emit('ai_promptize_response', {'success': False, 'error': 'AI not enabled'}, to=sid)
+        return
+
+    instruction = f"Improve the following user prompt to be more clear, detailed and effective for a coding assistant. Return ONLY the improved prompt text without any preamble or quotes:\n\n{prompt}"
+    
+    try:
+        improved = await ai_service.query(user_query=instruction)
+        # Clean up in case AI adds quotes or preamble
+        improved = improved.strip().replace('"', '').replace('Improved prompt:', '').strip()
+        
+        await sio.emit('ai_promptize_response', {
+            'success': True,
+            'improvedPrompt': improved
+        }, to=sid)
+    except Exception as e:
+        logger.error(f"AI promptize error: {e}")
+        await sio.emit('ai_promptize_response', {'success': False, 'error': str(e)}, to=sid)
+
+@sio.event
+async def ai_query(sid, data):
+    """Handle AI assistant queries"""
+    if not AI_ENABLED or not ai_service:
+        await sio.emit('ai_error', {
+            'error': 'AI Assistant is not enabled. No API key needed! Using Hugging Face free inference.'
+        }, to=sid)
+        return
+    
+    query = data.get('query', '')
+    code = data.get('code', '')
+    file_context = data.get('file', '')
+    context = data.get('context', [])
+    
+    logger.info(f"AI query from {sid}: {query[:50]}...")
+    
+    try:
+        # Query the AI service
+        response = await ai_service.query(
+            user_query=query,
+            code=code,
+            file_context=file_context,
+            conversation_history=context
+        )
+        
+        # Send response back
+        await sio.emit('ai_response', {
+            'response': response
+        }, to=sid)
+        
+    except Exception as e:
+        logger.error(f"AI query error: {e}")
+        await sio.emit('ai_error', {
+            'error': f'AI request failed: {str(e)}'
+        }, to=sid)
+
+
 
 # Mount Socket.IO
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path='/socket.io')
@@ -188,6 +368,156 @@ app.add_middleware(
 )
 
 app = socket_app
+
+@sio.event
+async def git_auth_store(sid, data):
+    """Store git token"""
+    platform = data.get('platform', 'github.com')
+    token = data.get('token')
+    username = data.get('username', 'default')
+    success = auth_service.store_token(platform, token, username)
+    await sio.emit('git_auth_response', {'success': success, 'platform': platform}, to=sid)
+
+@sio.event
+async def git_clone(sid, data):
+    """Handle git clone with optional auth"""
+    url = data.get('url')
+    platform = data.get('platform', 'github.com')
+    username = data.get('username', 'default')
+    
+    # Check for stored token
+    token = auth_service.get_token(platform, username)
+    if token:
+        url = git_service._inject_credentials(url, token)
+        
+    logger.info(f"Git clone request from {sid}: {url}")
+    result = await asyncio.to_thread(git_service.clone_repository, url, data.get('targetDir'))
+    
+    if result.get('success'):
+        files_result = await asyncio.to_thread(git_service.get_repo_files, result['path'])
+        result['files'] = files_result['files']
+        result['fileList'] = files_result['fileList']
+    
+    await sio.emit('git_response', {'action': 'clone', 'result': result}, to=sid)
+
+@sio.event
+async def git_merge(sid, data):
+    """Handle git merge"""
+    path = data.get('path')
+    source = data.get('source')
+    result = await asyncio.to_thread(git_service.merge_branches, path, source)
+    await sio.emit('git_response', {'action': 'merge', 'result': result}, to=sid)
+
+@sio.event
+async def git_branch_delete(sid, data):
+    """Handle git branch delete"""
+    path = data.get('path')
+    name = data.get('name')
+    force = data.get('force', False)
+    result = await asyncio.to_thread(git_service.delete_branch, path, name, force)
+    await sio.emit('git_response', {'action': 'branchDelete', 'result': result}, to=sid)
+
+@sio.event
+async def git_repo_create(sid, data):
+    """Handle git repo create"""
+    name = data.get('name')
+    result = await asyncio.to_thread(git_service.create_repository, name)
+    await sio.emit('git_response', {'action': 'repoCreate', 'result': result}, to=sid)
+
+@sio.event
+async def git_repo_delete(sid, data):
+    """Handle git repo delete"""
+    name = data.get('name')
+    result = await asyncio.to_thread(git_service.delete_repository, name)
+    await sio.emit('git_response', {'action': 'repoDelete', 'result': result}, to=sid)
+
+@sio.event
+async def git_status(sid, data):
+    """Handle git status"""
+    path = data.get('path')
+    result = await asyncio.to_thread(git_service.get_status, path)
+    
+    # Also get branches
+    branches_result = await asyncio.to_thread(git_service.get_branches, path)
+    if branches_result['success']:
+        result['branches'] = branches_result['branches']
+        result['currentBranch'] = branches_result['current']
+        
+    await sio.emit('git_response', {'action': 'status', 'result': result}, to=sid)
+
+@sio.event
+async def git_add(sid, data):
+    """Handle git add"""
+    path = data.get('path')
+    file = data.get('file')
+    result = await asyncio.to_thread(git_service.stage_file, path, file)
+    await sio.emit('git_response', {'action': 'add', 'result': result}, to=sid)
+
+@sio.event
+async def git_reset(sid, data):
+    """Handle git reset"""
+    path = data.get('path')
+    file = data.get('file')
+    result = await asyncio.to_thread(git_service.unstage_file, path, file)
+    await sio.emit('git_response', {'action': 'reset', 'result': result}, to=sid)
+
+@sio.event
+async def git_commit(sid, data):
+    """Handle git commit"""
+    path = data.get('path')
+    message = data.get('message')
+    result = await asyncio.to_thread(git_service.commit, path, message)
+    await sio.emit('git_response', {'action': 'commit', 'result': result}, to=sid)
+
+@sio.event
+async def git_push(sid, data):
+    """Handle git push with auth"""
+    path = data.get('path')
+    remote = data.get('remote', 'origin')
+    branch = data.get('branch')
+    platform = data.get('platform', 'github.com')
+    username = data.get('username', 'default')
+    
+    # Integration with auth service
+    token = auth_service.get_token(platform, username)
+    # Note: For push, we might need to update the remote URL temporarily or use environment variables
+    # For this demo, we assume the remote is already authenticated or uses a helper
+    
+    result = await asyncio.to_thread(git_service.push, path, remote, branch)
+    await sio.emit('git_response', {'action': 'push', 'result': result}, to=sid)
+
+@sio.event
+async def git_pull(sid, data):
+    """Handle git pull with auth"""
+    path = data.get('path')
+    platform = data.get('platform', 'github.com')
+    username = data.get('username', 'default')
+    
+    result = await asyncio.to_thread(git_service.pull, path)
+    await sio.emit('git_response', {'action': 'pull', 'result': result}, to=sid)
+
+@sio.event
+async def git_create_branch(sid, data):
+    """Handle git create branch"""
+    path = data.get('path')
+    name = data.get('name')
+    result = await asyncio.to_thread(git_service.create_branch, path, name)
+    await sio.emit('git_response', {'action': 'createBranch', 'result': result}, to=sid)
+
+@sio.event
+async def git_checkout(sid, data):
+    """Handle git checkout"""
+    path = data.get('path')
+    branch = data.get('branch')
+    result = await asyncio.to_thread(git_service.checkout_branch, path, branch)
+    await sio.emit('git_response', {'action': 'checkout', 'result': result}, to=sid)
+
+@sio.event
+async def git_repo_list(sid, data):
+    """Handle git repo list"""
+    result = await asyncio.to_thread(git_service.list_repositories)
+    await sio.emit('git_response', {'action': 'repoList', 'result': result}, to=sid)
+
 
 if __name__ == "__main__":
     import uvicorn

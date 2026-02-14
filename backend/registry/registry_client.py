@@ -87,6 +87,281 @@ class RegistryClient:
                 'version': '1.20.1',
                 'description': 'Node.js body parsing middleware',
                 'dependencies': {}
+            },
+            'eslint': {
+                'name': 'ESLint',
+                'version': '2.4.0',
+                'description': 'JavaScript linter for code quality',
+                'author': 'Microsoft',
+                'downloads': '50M',
+                'rating': 4.8,
+                'category': 'formatters',
+                'icon': '🔍',
+                'dependencies': {}
+            },
+            'prettier': {
+                'name': 'Prettier',
+                'version': '9.0.0',
+                'description': 'Opinionated code formatter',
+                'author': 'Prettier',
+                'downloads': '40M',
+                'rating': 4.9,
+                'category': 'formatters',
+                'icon': '✨',
+                'dependencies': {}
+            },
+            'python': {
+                'name': 'Python',
+                'version': '2024.1.0',
+                'description': 'Python language support with IntelliSense',
+                'author': 'Microsoft',
+                'downloads': '80M',
+                'rating': 4.9,
+                'category': 'languages',
+                'icon': '🐍',
+                'dependencies': {}
+            },
+            'gitlens': {
+                'name': 'GitLens',
+                'version': '14.0.0',
+                'description': 'Git supercharged',
+                'author': 'GitKraken',
+                'downloads': '20M',
+                'rating': 4.7,
+                'category': 'productivity',
+                'icon': '🔎',
+                'dependencies': {}
+            },
+            'docker': {
+                'name': 'Docker',
+                'version': '1.28.0',
+                'description': 'Docker support for VS Code',
+                'author': 'Microsoft',
+                'downloads': '22M',
+                'rating': 4.8,
+                'category': 'productivity',
+                'icon': '🐳',
+                'dependencies': {}
+            },
+            'react-snippets': {
+                'name': 'React Snippets',
+                'version': '4.4.3',
+                'description': 'ES7+ React/Redux snippets',
+                'author': 'dsznajder',
+                'downloads': '15M',
+                'rating': 4.8,
+                'category': 'snippets',
+                'icon': '⚛️',
+                'dependencies': {}
+            },
+            'auto-rename-tag': {
+                'name': 'Auto Rename Tag',
+                'version': '0.1.10',
+                'description': 'Auto rename paired HTML/XML tag',
+                'author': 'Jun Han',
+                'downloads': '12M',
+                'rating': 4.6,
+                'category': 'productivity',
+                'icon': '🏷️',
+                'dependencies': {}
+            },
+            'bracket-colorizer': {
+                'name': 'Bracket Pair Colorizer',
+                'version': '2.0.2',
+                'description': 'Colorize matching brackets',
+                'author': 'CoenraadS',
+                'downloads': '8M',
+                'rating': 4.7,
+                'category': 'productivity',
+                'icon': '🌈',
+                'dependencies': {}
+            },
+            'live-server': {
+                'name': 'Live Server',
+                'version': '5.7.9',
+                'description': 'Launch a local dev server with live reload',
+                'author': 'Ritwick Dey',
+                'downloads': '45M',
+                'rating': 4.9,
+                'category': 'productivity',
+                'icon': '🚀',
+                'dependencies': {}
+            },
+            'material-icons': {
+                'name': 'Material Icon Theme',
+                'version': '4.32.0',
+                'description': 'Material Design icons for files',
+                'author': 'Philipp Kief',
+                'downloads': '25M',
+                'rating': 4.8,
+                'category': 'themes',
+                'icon': '📁',
+                'dependencies': {}
+            },
+            'one-dark': {
+                'name': 'One Dark Pro',
+                'version': '3.16.0',
+                'description': 'Atom One Dark theme for VS Code',
+                'author': 'binaryify',
+                'downloads': '18M',
+                'rating': 4.7,
+                'category': 'themes',
+                'icon': '🎨',
+                'dependencies': {}
+            },
+            'dracula': {
+                'name': 'Dracula Theme',
+                'version': '2.24.3',
+                'description': 'Dark theme for VS Code',
+                'author': 'Dracula Theme',
+                'downloads': '10M',
+                'rating': 4.8,
+                'category': 'themes',
+                'icon': '🧛',
+                'dependencies': {}
+            },
+            'tailwind': {
+                'name': 'Tailwind CSS IntelliSense',
+                'version': '0.11.0',
+                'description': 'Tailwind CSS class autocomplete',
+                'author': 'Tailwind Labs',
+                'downloads': '12M',
+                'rating': 4.9,
+                'category': 'languages',
+                'icon': '💨',
+                'dependencies': {}
+            },
+            'debugger-chrome': {
+                'name': 'Debugger for Chrome',
+                'version': '4.13.0',
+                'description': 'Debug JavaScript in Chrome',
+                'author': 'Microsoft',
+                'downloads': '30M',
+                'rating': 4.6,
+                'category': 'debuggers',
+                'icon': '🐛',
+                'dependencies': {}
+            },
+            'path-intellisense': {
+                'name': 'Path Intellisense',
+                'version': '2.8.5',
+                'description': 'Autocomplete file paths',
+                'author': 'Christian Kohler',
+                'downloads': '8M',
+                'rating': 4.7,
+                'category': 'productivity',
+                'icon': '📂',
+                'dependencies': {}
+            },
+            'import-cost': {
+                'name': 'Import Cost',
+                'version': '3.3.0',
+                'description': 'Display import/require package size',
+                'author': 'Wix',
+                'downloads': '4M',
+                'rating': 4.4,
+                'category': 'productivity',
+                'icon': '📊',
+                'dependencies': {}
+            },
+            'github-copilot': {
+                'name': 'GitHub Copilot',
+                'version': '1.150.0',
+                'description': 'AI pair programmer',
+                'author': 'GitHub',
+                'downloads': '10M',
+                'rating': 4.7,
+                'category': 'productivity',
+                'icon': '🤖',
+                'dependencies': {}
+            },
+            'code-runner': {
+                'name': 'Code Runner',
+                'version': '0.12.1',
+                'description': 'Run code snippet in multiple languages',
+                'author': 'Jun Han',
+                'downloads': '35M',
+                'rating': 4.8,
+                'category': 'productivity',
+                'icon': '▶️',
+                'dependencies': {}
+            },
+            'todo-highlight': {
+                'name': 'TODO Highlight',
+                'version': '2.0.5',
+                'description': 'Highlight TODOs and FIXMEs in your code.',
+                'author': 'Wayou Liu',
+                'downloads': '2M',
+                'rating': 4.7,
+                'category': 'productivity',
+                'icon': '📝',
+                'dependencies': {}
+            },
+            'vscode-icons': {
+                'name': 'vscode-icons',
+                'version': '12.6.0',
+                'description': 'Icons for VS Code',
+                'author': 'VSCode Icons Team',
+                'downloads': '20M',
+                'rating': 4.9,
+                'category': 'themes',
+                'icon': '🎭',
+                'dependencies': {}
+            },
+            'git-graph': {
+                'name': 'Git Graph',
+                'version': '1.30.0',
+                'description': 'View a Git Graph of your repository, and perform Git actions from the graph.',
+                'author': 'mhutchie',
+                'downloads': '5M',
+                'rating': 4.9,
+                'category': 'productivity',
+                'icon': '📊',
+                'dependencies': {}
+            },
+            'error-lens': {
+                'name': 'Error Lens',
+                'version': '3.16.0',
+                'description': 'Improve highlighting of errors, warnings and other language diagnostics.',
+                'author': 'Alexander',
+                'downloads': '3M',
+                'rating': 4.8,
+                'category': 'productivity',
+                'icon': '👁️',
+                'dependencies': {}
+            },
+            'thunder-client': {
+                'name': 'Thunder Client',
+                'version': '2.12.0',
+                'description': 'Lightweight Rest Client for VS Code',
+                'author': 'Ranga Vadhineni',
+                'downloads': '4M',
+                'rating': 4.7,
+                'category': 'productivity',
+                'icon': '⚡',
+                'dependencies': {}
+            },
+            'tabnine': {
+                'name': 'Tabnine AI',
+                'version': '5.0.0',
+                'description': 'AI Code Completion',
+                'author': 'Tabnine',
+                'downloads': '10M',
+                'rating': 4.6,
+                'category': 'productivity',
+                'icon': '🤖',
+                'dependencies': {}
+            },
+            'remote-ssh': {
+                'name': 'Remote - SSH',
+                'version': '0.107.0',
+                'description': 'Open any folder on a remote machine using SSH.',
+                'author': 'Microsoft',
+                'downloads': '15M',
+                'rating': 4.8,
+                'category': 'productivity',
+                'icon': '🌐',
+                'dependencies': {}
             }
         },
         'pypi': {
@@ -222,7 +497,12 @@ class RegistryClient:
                     results.append({
                         'name': pkg_data['name'],
                         'version': pkg_data['version'],
-                        'description': pkg_data['description']
+                        'description': pkg_data['description'],
+                        'author': pkg_data.get('author', 'Unknown'),
+                        'category': pkg_data.get('category', 'library'),
+                        'downloads': pkg_data.get('downloads', '0'),
+                        'rating': pkg_data.get('rating', 0),
+                        'icon': pkg_data.get('icon', '📦')
                     })
                     if len(results) >= limit:
                         break
