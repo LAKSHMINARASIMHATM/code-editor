@@ -1,0 +1,217 @@
+.theme-customizer {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #0a0a0a;
+}
+
+.theme-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.view-tabs {
+    display: flex;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+    background: rgba(249, 115, 22, 0.2);
+    color: #F97316;
+}
+
+.theme-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.icon-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.icon-action:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #F97316;
+}
+
+.themes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.theme-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.theme-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(249, 115, 22, 0.5);
+}
+
+.theme-card.active {
+    border-color: #F97316;
+    background: rgba(249, 115, 22, 0.1);
+}
+
+.theme-preview {
+    height: 100px;
+    padding: 12px;
+}
+
+.preview-colors {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    height: 100%;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.preview-colors div {
+    width: 100%;
+    height: 100%;
+}
+
+.theme-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-top: 1px solid rgba(255, 255, 255, 0. 05);
+}
+
+.theme-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.active-icon {
+    color: #F97316;
+}
+
+.custom-colors {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.color-category {
+    margin-bottom: 32px;
+}
+
+.category-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #F97316;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.color-inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.color-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.color-input-group label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: capitalize;
+}
+
+.color-input {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.color-input input[type="color"] {
+    width: 40px;
+    height: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+}
+
+.color-input input[type="text"] {
+    flex: 1;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: white;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    outline: none;
+}
+
+.color-input input[type="text"]:focus {
+    border-color: #F97316;
+}
+
+.save-theme-btn {
+    width: 100%;
+    margin-top: 24px;
+    padding: 12px;
+    background: rgba(249, 115, 22, 0.2);
+    border: 1px solid #F97316;
+    border-radius: 6px;
+    color: #F97316;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.save-theme-btn:hover {
+    background: rgba(249, 115, 22, 0.3);
+}

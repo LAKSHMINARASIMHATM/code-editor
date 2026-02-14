@@ -259,6 +259,57 @@ class GitService:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def get_conflict_details(self, repo_path: str, file_path: str) -> Dict:
+        """Get the two versions of a conflicted file: ours and theirs"""
+        try:
+            # Stage 2: ours
+            ours_result = subprocess.run(
+                ["git", "show", f":2:{file_path}"],
+                cwd=repo_path, capture_output=True, text=True
+            )
+            # Stage 3: theirs
+            theirs_result = subprocess.run(
+                ["git", "show", f":3:{file_path}"],
+                cwd=repo_path, capture_output=True, text=True
+            )
+            
+            return {
+                "success": True,
+                "ours": ours_result.stdout if ours_result.returncode == 0 else "",
+                "theirs": theirs_result.stdout if theirs_result.returncode == 0 else "",
+                "path": file_path
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def resolve_conflict(self, repo_path: str, file_path: str, content: str) -> Dict:
+        """Resolve conflict by writing final content and staging it"""
+        try:
+            full_path = os.path.join(repo_path, file_path)
+            # Ensure the directory exists (might be a new file in a new dir)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            subprocess.run(["git", "add", file_path], cwd=repo_path, check=True)
+            return {"success": True, "message": f"Resolved conflict in {file_path}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _get_current_branch(self, repo_path: str) -> str:
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            return result.stdout.strip()
+        except Exception:
+            return "unknown"
+
     def _inject_credentials(self, url: str, token: str) -> str:
         """Inject token into HTTPS URL for authenticated operations"""
         if url.startswith("https://") and token:

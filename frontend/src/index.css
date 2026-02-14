@@ -13,6 +13,8 @@ body {
     -moz-osx-font-smoothing: grayscale;
     background: #050505;
     color: #E5E5E5;
+    height: 100vh;
+    overflow: hidden;
 }
 
 code {
@@ -47,6 +49,7 @@ code {
         --chart-5: 27 87% 67%;
         --radius: 0.5rem;
     }
+
     .dark {
         --background: 0 0% 3.9%;
         --foreground: 0 0% 98%;
@@ -79,6 +82,7 @@ code {
     * {
         @apply border-border;
     }
+
     body {
         @apply bg-[#050505] text-[#E5E5E5];
     }
@@ -89,7 +93,7 @@ code {
         display: contents !important;
     }
 
-    [data-debug-wrapper="true"] > * {
+    [data-debug-wrapper="true"]>* {
         margin-left: inherit;
         margin-right: inherit;
         margin-top: inherit;
@@ -133,4 +137,44 @@ code {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #505050;
+}
+
+/* Monaco Remote Decorations */
+.remote-cursor-decoration {
+    background-color: #f97316;
+    width: 2px !important;
+}
+
+.remote-cursor-label {
+    background: #f97316;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transform: translateY(-100%);
+    white-space: nowrap;
+}
+
+.remote-highlight-decoration {
+    background-color: rgba(59, 130, 246, 0.15);
+    border-left: 2px solid #3b82f6;
+    transition: background-color 0.2s;
+}
+
+.animate-spin-slow {
+    animation: spin 3s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }

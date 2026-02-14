@@ -5,6 +5,7 @@ import {
     FileText, FileCode, FileJson, FileType, File,
     Image, Database, Settings, Lock, Package
 } from 'lucide-react';
+import { ContextMenu } from './ContextMenu';
 
 // File icon mapping based on extension
 const getFileIcon = (fileName) => {
@@ -107,7 +108,7 @@ const sortChildren = (children) => {
 };
 
 // TreeNode component
-const TreeNode = ({ node, depth, activeFile, onFileClick, expandedFolders, onToggleFolder }) => {
+const TreeNode = ({ node, depth, activeFile, onFileClick, expandedFolders, onToggleFolder, onContextMenu }) => {
     const isExpanded = expandedFolders.has(node.fullPath);
     const isActive = activeFile === node.fullPath;
     const hasChildren = Object.keys(node.children).length > 0;
@@ -120,6 +121,12 @@ const TreeNode = ({ node, depth, activeFile, onFileClick, expandedFolders, onTog
         }
     };
 
+    const handleContextMenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu(e, node);
+    };
+
     const { icon: IconComponent, color } = node.isDirectory
         ? { icon: isExpanded ? FolderOpen : Folder, color: '#F97316' }
         : getFileIcon(node.name);
@@ -130,6 +137,7 @@ const TreeNode = ({ node, depth, activeFile, onFileClick, expandedFolders, onTog
                 className={`file-tree-item ${isActive ? 'active' : ''} ${node.isDirectory ? 'directory' : 'file'}`}
                 style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 onClick={handleClick}
+                onContextMenu={handleContextMenu}
             >
                 {node.isDirectory ? (
                     <span className="tree-arrow">
@@ -153,6 +161,7 @@ const TreeNode = ({ node, depth, activeFile, onFileClick, expandedFolders, onTog
                             onFileClick={onFileClick}
                             expandedFolders={expandedFolders}
                             onToggleFolder={onToggleFolder}
+                            onContextMenu={onContextMenu}
                         />
                     ))}
                 </div>
@@ -162,8 +171,9 @@ const TreeNode = ({ node, depth, activeFile, onFileClick, expandedFolders, onTog
 };
 
 // Main FileTree component
-export const FileTree = ({ files, activeFile, onFileClick }) => {
+export const FileTree = ({ files, activeFile, onFileClick, onFileAction }) => {
     const [expandedFolders, setExpandedFolders] = useState(new Set());
+    const [contextMenu, setContextMenu] = useState(null);
 
     const tree = useMemo(() => buildFileTree(files), [files]);
 
@@ -177,6 +187,21 @@ export const FileTree = ({ files, activeFile, onFileClick }) => {
             }
             return next;
         });
+    };
+
+    const handleContextMenu = (e, node) => {
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            item: node
+        });
+    };
+
+    const handleContextAction = (action, item) => {
+        if (onFileAction) {
+            onFileAction(action, item);
+        }
+        setContextMenu(null);
     };
 
     // Expand all folders on first load
@@ -200,7 +225,18 @@ export const FileTree = ({ files, activeFile, onFileClick }) => {
     const rootNodes = sortChildren(tree.children);
 
     if (rootNodes.length === 0) {
-        return null;
+        return (
+            <div className="flex flex-col items-center justify-center p-4 pt-10 text-center">
+                <p className="text-neutral-500 text-sm mb-4">No folder opened</p>
+                <button
+                    onClick={() => onFileAction && onFileAction('openFolder')}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded bg-orange-500/10 text-orange-500 border border-orange-500/30 hover:bg-orange-500/20 text-xs font-medium transition-colors"
+                >
+                    <FolderOpen size={14} />
+                    <span>Open Folder</span>
+                </button>
+            </div>
+        );
     }
 
     return (
@@ -214,8 +250,18 @@ export const FileTree = ({ files, activeFile, onFileClick }) => {
                     onFileClick={onFileClick}
                     expandedFolders={expandedFolders}
                     onToggleFolder={toggleFolder}
+                    onContextMenu={handleContextMenu}
                 />
             ))}
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    item={contextMenu.item}
+                    onClose={() => setContextMenu(null)}
+                    onAction={handleContextAction}
+                />
+            )}
         </div>
     );
 };

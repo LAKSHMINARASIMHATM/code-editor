@@ -1,0 +1,262 @@
+/* Professional IDE Layout - VS Code Style */
+
+.professional-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background: #0a0a0a;
+    height: 100%;
+}
+
+/* Sidebars */
+.layout-sidebar {
+    display: flex;
+    flex-direction: column;
+    background: #0d0d0d;
+    border-right: 1px solid #1a1a1a;
+    overflow: hidden;
+    flex-shrink: 0;
+    position: relative;
+    transition: width 0.2s ease;
+}
+
+.layout-sidebar.right {
+    border-right: none;
+    border-left: 1px solid #1a1a1a;
+}
+
+/* Resize Handles */
+.layout-sidebar.left::after,
+.layout-sidebar.right::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: transparent;
+    cursor: col-resize;
+    transition: background 0.2s ease;
+    z-index: 10;
+}
+
+.layout-sidebar.left::after {
+    right: -2px;
+}
+
+.layout-sidebar.right::before {
+    left: -2px;
+}
+
+.layout-sidebar.left:hover::after,
+.layout-sidebar.right:hover::before {
+    background: rgba(249, 115, 22, 0.3);
+}
+
+/* Sidebar Tabs */
+.sidebar-tabs {
+    display: flex;
+    background: #0a0a0a;
+    border-bottom: 1px solid #1a1a1a;
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+
+.sidebar-tabs::-webkit-scrollbar {
+    height: 2px;
+}
+
+.sidebar-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.sidebar-tab:hover {
+    color: #999;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.sidebar-tab.active {
+    color: #f97316;
+    border-bottom-color: #f97316;
+    background: rgba(249, 115, 22, 0.05);
+}
+
+.sidebar-tab svg {
+    width: 14px;
+    height: 14px;
+}
+
+.tab-badge {
+    background: #f97316;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 4px;
+    font-weight: 700;
+}
+
+/* Sidebar Content */
+.sidebar-content {
+    flex: 1;
+    overflow: auto;
+    background: #0a0a0a;
+}
+
+/* Center Wrapper - Contains Editor + Bottom Panel */
+.layout-center-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Center Editor */
+.layout-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: #1e1e1e;
+}
+
+/* Bottom Panel - Terminal, Problems, Output */
+.layout-bottom {
+    display: flex;
+    flex-direction: column;
+    background: #0d0d0d;
+    border-top: 2px solid #f97316;
+    flex-shrink: 0;
+    position: relative;
+    transition: height 0.2s ease;
+}
+
+/* Bottom resize handle */
+.layout-bottom::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: transparent;
+    cursor: row-resize;
+    transition: background 0.2s ease;
+    z-index: 10;
+}
+
+.layout-bottom:hover::before {
+    background: rgba(249, 115, 22, 0.3);
+}
+
+.bottom-tabs {
+    display: flex;
+    background: #0a0a0a;
+    border-bottom: 1px solid #1a1a1a;
+    flex-shrink: 0;
+}
+
+.bottom-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+}
+
+.bottom-tab:hover {
+    color: #999;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.bottom-tab.active {
+    color: #f97316;
+    border-bottom-color: #f97316;
+    background: rgba(249, 115, 22, 0.05);
+}
+
+.bottom-tab svg {
+    width: 14px;
+    height: 14px;
+}
+
+.bottom-content {
+    flex: 1;
+    overflow: hidden;
+    background: #0a0a0a;
+    min-height: 0;
+    position: relative;
+}
+
+/* Debug panels stack */
+.debug-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow-y: auto;
+    height: 100%;
+}
+
+.debug-panels>* {
+    border-bottom: 1px solid #1a1a1a;
+}
+
+/* Scrollbar */
+.professional-layout ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.professional-layout ::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+.professional-layout ::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+
+.professional-layout ::-webkit-scrollbar-thumb:hover {
+    background: #444;
+}
+
+/* Smooth animations */
+.layout-sidebar,
+.layout-bottom {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Better focus states */
+.sidebar-tab:focus-visible,
+.bottom-tab:focus-visible {
+    outline: 2px solid #f97316;
+    outline-offset: -2px;
+}

@@ -1,0 +1,189 @@
+/* DockPanel Component Styles - VS Code Style */
+
+.dock-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #0a0a0a;
+    overflow: hidden;
+}
+
+.dock-panel.maximized {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+}
+
+/* Header with tabs */
+.dock-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #0d0d0d;
+    border-bottom: 1px solid #1f1f1f;
+    flex-shrink: 0;
+}
+
+.dock-panel-tabs {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    flex: 1;
+}
+
+.dock-panel-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+/* Individual Tab */
+.dock-panel-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.dock-panel-tab:hover {
+    color: #999;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dock-panel-tab.active {
+    color: #f97316;
+    border-bottom-color: #f97316;
+    background: rgba(249, 115, 22, 0.05);
+}
+
+.dock-panel-tab.drag-over {
+    background: rgba(249, 115, 22, 0.1);
+}
+
+.dock-panel-tab.dragging {
+    opacity: 0.5;
+}
+
+/* Tab icon */
+.dock-panel-tab-icon {
+    display: flex;
+    align-items: center;
+}
+
+.dock-panel-tab-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Tab label */
+.dock-panel-tab-label {
+    font-size: 11px;
+}
+
+/* Tab close button */
+.dock-panel-tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: #666;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.15s;
+}
+
+.dock-panel-tab:hover .dock-panel-tab-close {
+    opacity: 1;
+}
+
+.dock-panel-tab-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* Tab badge */
+.dock-panel-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    background: #f97316;
+    border-radius: 9px;
+    margin-left: 6px;
+}
+
+/* Panel actions */
+.dock-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 8px;
+}
+
+.dock-panel-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.dock-panel-action:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* Content area */
+.dock-panel-content {
+    flex: 1;
+    overflow: auto;
+    background: #0a0a0a;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dock-panel-content>* {
+    animation: fadeIn 0.15s ease;
+}

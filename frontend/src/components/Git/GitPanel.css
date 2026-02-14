@@ -1,0 +1,227 @@
+.git-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #0a0a0a;
+}
+
+.git-header {
+    padding: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.git-branch-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.git-branch-selector select {
+    flex: 1;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    outline: none;
+}
+
+.git-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.git-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(249, 115, 22, 0.1);
+    border: 1px solid rgba(249, 115, 22, 0.3);
+    border-radius: 4px;
+    color: #F97316;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.git-btn:hover {
+    background: rgba(249, 115, 22, 0.2);
+    border-color: #F97316;
+}
+
+.icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #F97316;
+}
+
+.git-changes {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.changes-section {
+    margin: 12px 0;
+}
+
+.section-header {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.5px;
+}
+
+.changes-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.change-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.change-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.change-item.staged {
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.change-status {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.change-item.staged .change-status {
+    color: #10B981;
+}
+
+.change-file {
+    flex: 1;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.change-action {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0;
+}
+
+.change-item:hover .change-action {
+    opacity: 1;
+}
+
+.change-action:hover {
+    background: rgba(249, 115, 22, 0.2);
+    border-color: #F97316;
+    color: #F97316;
+}
+
+.no-changes {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: rgba(255, 255, 255, 0.3);
+    gap: 12px;
+}
+
+.git-commit-section {
+    padding: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.commit-message {
+    width: 100%;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    resize: vertical;
+    margin-bottom: 8px;
+    outline: none;
+}
+
+.commit-message:focus {
+    border-color: #F97316;
+}
+
+.commit-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(249, 115, 22, 0.2);
+    border: 1px solid #F97316;
+    border-radius: 4px;
+    color: #F97316;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.commit-btn:hover:not(:disabled) {
+    background: rgba(249, 115, 22, 0.3);
+}
+
+.commit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

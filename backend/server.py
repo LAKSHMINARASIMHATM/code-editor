@@ -49,6 +49,28 @@ command_executor = CommandExecutor(npm_manager, pip_manager, virtual_fs)
 
 # Store active users and sessions
 active_users = {}
+project_host = None
+activity_logs = []
+
+import uuid
+
+async def log_activity(action, details=None, user_id=None):
+    user_name = 'System'
+    if user_id and user_id in active_users:
+        user_name = active_users[user_id]['name']
+    
+    log = {
+        'id': str(uuid.uuid4()),
+        'timestamp': datetime.now().isoformat(),
+        'action': action,
+        'details': details,
+        'userId': user_id,
+        'userName': user_name
+    }
+    
+    activity_logs.append(log)
+    # Broadcast to all clients
+    await sio.emit('activity_update', log)
 
 user_colors = [
     {'color': '#3B82F6', 'name': 'blue'},
@@ -76,10 +98,18 @@ async def connect(sid, environ):
 
 @sio.event
 async def join_session(sid, data):
+    global project_host
     user_name = data.get('name', f'User-{len(active_users) + 1}')
     color = user_colors[len(active_users) % len(user_colors)]
     avatar = get_avatar_url(len(active_users))
     
+    # Assign Roles: First user is Host, others are Members
+    if not project_host:
+        project_host = sid
+        role = 'host'
+    else:
+        role = 'member'
+
     initial_cursor = data.get('cursor', {'lineNumber': 1, 'column': 1})
     
     active_users[sid] = {
@@ -88,21 +118,47 @@ async def join_session(sid, data):
         'color': color,
         'avatar': avatar,
         'cursor': initial_cursor,
-        'isTyping': False
+        'isTyping': False,
+        'role': role
     }
     
-    logger.info(f"User joined: {user_name} ({sid})")
+    logger.info(f"User joined: {user_name} ({sid}) as {role}")
+    
+    await log_activity('joined the session', user_id=sid)
     
     await sio.emit('session_joined', {
         'userId': sid,
-        'users': [{**user, 'id': uid, 'isLocal': uid == sid} for uid, user in active_users.items()]
+        'users': [{**user, 'id': uid, 'isLocal': uid == sid} for uid, user in active_users.items()],
+        'activityLogs': activity_logs
     }, to=sid)
     
-    await sio.emit('user_joined', active_users[sid], skip_sid=sid)
+    # Broadcast new user to others (legacy, keeping for safety)
+    await sio.emit('user_joined', {**active_users[sid], 'id': sid}, skip_sid=sid)
+
+    # Broadcast full updated list to everyone (Best Practice)
+    # Note: isLocal is NOT sent here because it depends on the receiver.
+    await sio.emit('users_update', {
+        'users': [{**user, 'id': uid} for uid, user in active_users.items()]
+    })
+
+def check_permission(sid, required_role='host'):
+    user = active_users.get(sid)
+    if not user:
+        return False
+    if user.get('role') != required_role:
+        return False
+    return True
 
 @sio.event
 async def terminal_command(sid, data):
     """Handle terminal command execution with package management"""
+    if not check_permission(sid, 'host'):
+        await sio.emit('terminal_output', {
+            'output': "\x1b[1;31mPermission Denied: Only the Host can execute commands.\x1b[0m\n",
+            'success': False
+        }, to=sid)
+        return
+
     command = data.get('command', '')
     logger.info(f"Terminal command from {sid}: {command}")
     
@@ -136,6 +192,7 @@ async def terminal_input(sid, data):
     # Route to terminal_command
     await terminal_command(sid, {'command': input_text})
 
+
 @sio.event
 async def terminal_resize(sid, data):
     """Handle terminal resize"""
@@ -148,8 +205,25 @@ async def disconnect(sid):
     if sid in active_users:
         user_name = active_users[sid]['name']
         active_users.pop(sid)
+        
+        # Role Handover if Host leaves
+        global project_host
+        if project_host == sid:
+            if active_users:
+                project_host = list(active_users.keys())[0]
+                active_users[project_host]['role'] = 'host'
+                logger.info(f"Host handed over to: {active_users[project_host]['name']}")
+                asyncio.create_task(log_activity(f"became project host (handover)", user_id=project_host))
+            else:
+                project_host = None
+        
+        asyncio.create_task(log_activity('left the session', user_id=sid))
         logger.info(f"User disconnected: {user_name} ({sid})")
         await sio.emit('user_left', {'userId': sid})
+        # Broadcast updated user list with new roles
+        await sio.emit('users_update', {
+            'users': [{**user, 'id': uid} for uid, user in active_users.items()]
+        })
 
 @sio.event
 async def cursor_move(sid, data):
@@ -171,12 +245,68 @@ async def typing_status(sid, data):
 
 @sio.event
 async def code_change(sid, data):
+    file_name = data.get('file', '')
+    
+    # Detect environment changes
+    env_files = ['package.json', 'package-lock.json', 'requirements.txt', 'Pipfile', 'go.mod']
+    if any(file_name.endswith(ef) for ef in env_files):
+        # Broadcast environment sync requirement
+        await sio.emit('env_sync_required', {
+            'file': file_name,
+            'requester': sid,
+            'userName': active_users.get(sid, {}).get('name', 'User')
+        })
+
+    # Log significant file changes
+    if data.get('operation') == 'update':
+        asyncio.create_task(log_activity(f"updated file: {file_name}", user_id=sid))
+
     await sio.emit('code_update', {
         'userId': sid,
         'operation': data.get('operation'),
-        'file': data.get('file'),
-        'content': data.get('content')
+        'file': file_name,
+        'content': data.get('content'),
+        'delta': data.get('delta')
     }, skip_sid=sid)
+
+@sio.event
+async def env_sync_execute(sid, data):
+    """Execute environment sync (e.g., npm install)"""
+    file_name = data.get('file', '')
+    logger.info(f"Env sync requested by {sid} for {file_name}")
+    
+    command = ""
+    if file_name.endswith('package.json') or file_name.endswith('package-lock.json'):
+        command = "npm install"
+    elif file_name.endswith('requirements.txt'):
+        command = "pip install -r requirements.txt"
+    elif file_name.endswith('Pipfile'):
+        command = "pipenv install"
+    elif file_name.endswith('go.mod'):
+        command = "go mod tidy"
+    
+    if command:
+        await log_activity(f"started environment sync: {command}", user_id=sid)
+        await sio.emit('terminal_output', {'output': f"\x1b[1;36m>> Syncing Environment: {command}...\x1b[0m\n"}, to=sid)
+        
+        try:
+            result = await command_executor.execute(command)
+            output = result['output']
+            if result['error']:
+                output += result['error']
+                
+            await sio.emit('terminal_output', {'output': output, 'success': result['success']}, to=sid)
+            
+            if result['success']:
+                await sio.emit('env_sync_complete', {
+                    'success': True, 
+                    'file': file_name,
+                    'command': command
+                })
+                await log_activity(f"completed environment sync: {command}", user_id=sid)
+        except Exception as e:
+            logger.error(f"Sync error: {e}")
+            await sio.emit('terminal_output', {'output': f"\x1b[1;31mSync Error: {str(e)}\x1b[0m\n", 'success': False}, to=sid)
 
 @sio.event
 async def chat_message(sid, data):
@@ -214,6 +344,7 @@ async def extension_install(sid, data):
         current_config['extensions'].append({**extension, 'installedBy': sid, 'installedAt': str(datetime.now())})
         await virtual_fs.write_json(ext_config_path, current_config)
         
+        asyncio.create_task(log_activity(f"installed extension: {extension.get('name')}", user_id=sid))
         # Broadcast update to all clients
         await sio.emit('extensions_update', {
             'extensions': current_config['extensions']
@@ -245,6 +376,7 @@ async def extension_uninstall(sid, data):
         if len(current_config['extensions']) < config_len:
             await virtual_fs.write_json(ext_config_path, current_config)
             
+            asyncio.create_task(log_activity(f"uninstalled extension: {ext_id}", user_id=sid))
             # Broadcast update
             await sio.emit('extensions_update', {
                 'extensions': current_config['extensions']
@@ -353,6 +485,51 @@ async def ai_query(sid, data):
         await sio.emit('ai_error', {
             'error': f'AI request failed: {str(e)}'
         }, to=sid)
+
+active_ai_suggestions = {}
+
+@sio.event
+async def ai_suggest_code(sid, data):
+    """Broadcast an AI suggestion to the team for review"""
+    suggestion_id = f"sug_{len(active_ai_suggestions) + 1}"
+    suggestion = {
+        'id': suggestion_id,
+        'userId': sid,
+        'userName': active_users.get(sid, {}).get('name', 'User'),
+        'file': data.get('file'),
+        'code': data.get('code'),
+        'description': data.get('description', ''),
+        'votes': {sid: 'approve'},
+        'timestamp': Date.now() if 'Date' in globals() else 0 # Fix: use asyncio time or similar
+    }
+    
+    # In python we need to import time or use datetime
+    import time
+    suggestion['timestamp'] = int(time.time() * 1000)
+    
+    active_ai_suggestions[suggestion_id] = suggestion
+    
+    await log_activity(f"shared an AI suggestion for {data.get('file')}", user_id=sid)
+    await sio.emit('ai_suggestion_broadcast', suggestion)
+
+@sio.event
+async def ai_vote_suggestion(sid, data):
+    """Vote on an AI suggestion"""
+    s_id = data.get('id')
+    vote = data.get('vote') # 'approve' or 'reject'
+    
+    if s_id in active_ai_suggestions:
+        active_ai_suggestions[s_id]['votes'][sid] = vote
+        await sio.emit('ai_suggestion_update', active_ai_suggestions[s_id])
+        
+        # Auto-apply if more than 50% approval (simple rule for now)
+        approvals = sum(1 for v in active_ai_suggestions[s_id]['votes'].values() if v == 'approve')
+        total_active = len(active_users)
+        
+        if approvals > total_active / 2:
+            await sio.emit('ai_suggestion_approved', active_ai_suggestions[s_id])
+            # Clear it after approval
+            # active_ai_suggestions.pop(s_id)
 
 
 
@@ -467,6 +644,8 @@ async def git_commit(sid, data):
     path = data.get('path')
     message = data.get('message')
     result = await asyncio.to_thread(git_service.commit, path, message)
+    if result.get('success'):
+        asyncio.create_task(log_activity(f"committed: {message[:30]}...", user_id=sid))
     await sio.emit('git_response', {'action': 'commit', 'result': result}, to=sid)
 
 @sio.event
@@ -484,6 +663,8 @@ async def git_push(sid, data):
     # For this demo, we assume the remote is already authenticated or uses a helper
     
     result = await asyncio.to_thread(git_service.push, path, remote, branch)
+    if result.get('success'):
+        asyncio.create_task(log_activity(f"pushed to {remote}/{branch}", user_id=sid))
     await sio.emit('git_response', {'action': 'push', 'result': result}, to=sid)
 
 @sio.event
@@ -513,6 +694,23 @@ async def git_checkout(sid, data):
     await sio.emit('git_response', {'action': 'checkout', 'result': result}, to=sid)
 
 @sio.event
+async def git_conflict_details(sid, data):
+    """Get conflict details for a file"""
+    path = data.get('path')
+    file = data.get('file')
+    result = await asyncio.to_thread(git_service.get_conflict_details, path, file)
+    await sio.emit('git_response', {'action': 'conflictDetails', 'result': result}, to=sid)
+
+@sio.event
+async def git_resolve_conflict(sid, data):
+    """Resolve a conflict in a file"""
+    path = data.get('path')
+    file = data.get('file')
+    content = data.get('content')
+    result = await asyncio.to_thread(git_service.resolve_conflict, path, file, content)
+    if result.get('success'):
+        await log_activity(f"resolved conflict in {file}", user_id=sid)
+    await sio.emit('git_response', {'action': 'resolveConflict', 'result': result}, to=sid)
 async def git_repo_list(sid, data):
     """Handle git repo list"""
     result = await asyncio.to_thread(git_service.list_repositories)

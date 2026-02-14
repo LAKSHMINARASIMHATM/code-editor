@@ -124,7 +124,7 @@ const Chat = ({ socket, currentUser, users }) => {
                 <div className="flex items-center gap-2">
                     <MessageSquare size={16} className="text-orange-500" />
                     <span className="font-semibold">Team Chat</span>
-                    <span className="text-xs text-neutral-500">({users.length} online)</span>
+                    <span className="text-xs text-neutral-500">({users?.length || 0} online)</span>
                     {unreadCount > 0 && (
                         <span className="chat-badge">{unreadCount}</span>
                     )}

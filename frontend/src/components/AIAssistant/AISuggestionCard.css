@@ -1,0 +1,160 @@
+.ai-suggestion-card {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    width: 320px;
+    background: #111;
+    border: 1px solid rgba(249, 115, 22, 0.3);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(249, 115, 22, 0.1);
+    z-index: 500;
+    overflow: hidden;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(50px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.ai-suggestion-badge {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: #f97316;
+    color: white;
+    font-size: 8px;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-bottom-right-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    letter-spacing: 0.5px;
+}
+
+.ai-suggestion-header {
+    padding: 20px 16px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: #999;
+}
+
+.dismiss-btn {
+    background: transparent;
+    border: none;
+    color: #444;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.dismiss-btn:hover {
+    color: #f97316;
+}
+
+.suggestion-code-preview {
+    margin: 0 16px;
+    padding: 8px;
+    background: #0a0a0a;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.suggestion-code-preview pre {
+    margin: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #aaa;
+    white-space: pre-wrap;
+    overflow: hidden;
+}
+
+.suggestion-footer {
+    padding: 12px 16px;
+    background: #161616;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.approval-status {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.approval-status span {
+    font-size: 10px;
+    color: #666;
+    font-weight: 600;
+}
+
+.progress-bar {
+    width: 60px;
+    height: 4px;
+    background: #252526;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #f97316;
+    transition: width 0.3s ease;
+}
+
+.vote-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.vote-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.vote-btn.approve {
+    background: #f97316;
+    color: white;
+    border: none;
+}
+
+.vote-btn.approve:hover {
+    background: #ea580c;
+    transform: scale(1.05);
+}
+
+.vote-btn.reject {
+    background: transparent;
+    border: 1px solid #333;
+    color: #555;
+}
+
+.vote-btn.reject:hover {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.05);
+}

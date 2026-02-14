@@ -1,0 +1,298 @@
+/* Component imports for Flux IDE */
+@import '../lib/layout/ResizablePanel.css';
+@import '../lib/layout/DockPanel.css';
+@import '../components/Problems/ProblemsPanel.css';
+@import '../components/Output/OutputPanel.css';
+@import '../components/Git/GitPanel.css';
+@import '../components/Debugger/VariablesPanel.css';
+@import '../components/Debugger/WatchPanel.css';
+@import '../components/Debugger/CallStackPanel.css';
+@import '../components/Debugger/BreakpointsPanel.css';
+@import '../components/Settings/SettingsPanel.css';
+@import '../components/Extensions/ExtensionsPanel.css';
+@import '../components/CommandPalette/CommandPalette.css';
+@import '../components/Themes/ThemeCustomizer.css';
+
+/* Professional Button Styles */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn:focus-visible {
+    outline: 2px solid #f97316;
+    outline-offset: 2px;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(0.3);
+}
+
+/* Primary Button - Orange */
+.btn-primary {
+    background: #f97316;
+    color: white;
+    box-shadow: 0 0 15px rgba(249, 115, 22, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #ea580c;
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.5);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 0 10px rgba(249, 115, 22, 0.3);
+}
+
+/* Secondary Button - Neutral */
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: #e5e5e5;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Success Button - Green */
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+    background: #059669;
+}
+
+/* Danger Button - Red */
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #dc2626;
+}
+
+/* Icon Button */
+.btn-icon {
+    padding: 8px;
+    min-width: unset;
+}
+
+.btn-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Loading State */
+.btn.loading {
+    color: transparent;
+    pointer-events: none;
+}
+
+.btn.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Toolbar Styles */
+.ide-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: #0a0a0a;
+    border-bottom: 1px solid #1a1a1a;
+    height: 50px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 100;
+}
+
+.menu-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 200px;
+    background: #0d0d0d;
+    border: 1px solid #1a1a1a;
+    border-radius: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    margin-top: 4px;
+    padding: 4px;
+    z-index: 1000;
+    animation: fadeInDown 0.15s ease-out;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Tooltip */
+[title]:hover::before {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: #1a1a1a;
+    color: #e5e5e5;
+    font-size: 11px;
+    white-space: nowrap;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+/* Debug Controls */
+.debug-controls {
+    display: flex;
+    gap: 4px;
+    padding: 8px;
+    background: #0a0a0a;
+}
+
+.debug-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: #999;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.debug-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f97316;
+    border-color: rgba(249, 115, 22, 0.3);
+}
+
+.debug-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.debug-btn.active {
+    background: rgba(249, 115, 22, 0.2);
+    color: #f97316;
+    border-color: #f97316;
+}
+
+/* Status indicators */
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+
+.status-online {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.status-busy {
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+}
+
+.status-offline {
+    background: #6b7280;
+}
+
+/* Error Lens Styles */
+.error-lens-text {
+    font-style: italic;
+    font-size: 0.9em;
+    padding-left: 20px;
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.error-lens-text.error {
+    color: #f87171 !important;
+}
+
+.error-lens-text.warning {
+    color: #fbbf24 !important;
+}
+
+.error-lens-text.info {
+    color: #60a5fa !important;
+}
+
+.error-lens-line.error {
+    background-color: rgba(248, 113, 113, 0.05);
+}
+
+.error-lens-glyph.error {
+    background: #f87171;
+    width: 2px !important;
+    margin-left: 4px;
+}
+
+.error-lens-glyph.warning {
+    background: #fbbf24;
+    width: 2px !important;
+    margin-left: 4px;
+}
+
+/* TODO Highlight Styles */
+.todo-highlight {
+    background-color: #f59e0b;
+    color: #000;
+    font-weight: bold;
+    border-radius: 2px;
+}
+
+.fixme-highlight {
+    background-color: #ef4444;
+    color: #fff;
+    font-weight: bold;
+    border-radius: 2px;
+}

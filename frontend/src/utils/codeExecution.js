@@ -87,38 +87,99 @@ export function executeCode(code, language) {
   return { output, errors };
 }
 
+export function analyzeCode(fileName, code, language) {
+  const problems = [];
+
+  // Syntax errors
+  const syntaxErrors = detectSyntaxErrors(code, language);
+  problems.push(...syntaxErrors.map(e => ({ ...e, file: fileName })));
+
+  // ESLint-like rules (simulated)
+  if (language === 'javascript' || language === 'typescript') {
+    const lines = code.split('\n');
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+
+      // Rule: No console.log in production (warning)
+      if (trimmed.includes('console.log')) {
+        problems.push({
+          file: fileName,
+          line: index + 1,
+          column: line.indexOf('console.log') + 1,
+          severity: 'warning',
+          message: 'Unexpected console statement',
+          source: 'eslint'
+        });
+      }
+
+      // Rule: Semi-colons
+      if (trimmed && !trimmed.endsWith(';') && !trimmed.endsWith('{') && !trimmed.endsWith('}') && !trimmed.startsWith('//') && !trimmed.startsWith('import') && !trimmed.startsWith('export')) {
+        // problems.push({
+        //   file: fileName,
+        //   line: index + 1,
+        //   severity: 'warning',
+        //   message: 'Missing semicolon',
+        //   source: 'eslint'
+        // });
+      }
+    });
+  } else if (language === 'python') {
+    const lines = code.split('\n');
+    lines.forEach((line, index) => {
+      // Rule: PEP8 Line length
+      if (line.length > 79) {
+        problems.push({
+          file: fileName,
+          line: index + 1,
+          severity: 'info',
+          message: 'Line too long (> 79 characters)',
+          source: 'pylint'
+        });
+      }
+      // Missing colon
+      if (line.trim().startsWith('if ') && !line.trim().endsWith(':')) {
+        problems.push({
+          file: fileName,
+          line: index + 1,
+          severity: 'error',
+          message: 'Missing colon at end of if statement',
+          source: 'pylint'
+        });
+      }
+    });
+  }
+
+  return problems;
+}
+
 function detectSyntaxErrors(code, language) {
   const errors = [];
-
-  // Simple syntax checks
   const lines = code.split('\n');
 
   lines.forEach((line, index) => {
     const trimmed = line.trim();
 
-    // Check for unclosed brackets
-    const openBrackets = (line.match(/[{[(]/g) || []).length;
-    const closeBrackets = (line.match(/[}\])]/g) || []).length;
-
-    if (openBrackets > closeBrackets && !trimmed.endsWith('{') && !trimmed.endsWith('(')) {
-      // Might be an error, but could span multiple lines
-    }
-
     // Check for common mistakes
     if (language === 'javascript' || language === 'typescript') {
-      if (trimmed.match(/^if\s*[^(]/) || trimmed.match(/^while\s*[^(]/) || trimmed.match(/^for\s*[^(]/)) {
+      if (trimmed.match(/^(if|while|for)\s*[^(]/)) {
         errors.push({
-          type: 'error',
+          file: '', // Filled by caller
+          line: index + 1,
+          column: 1,
+          severity: 'error',
           message: 'Missing parentheses after control statement',
-          line: index + 1
+          source: 'syntax'
         });
       }
 
       if (trimmed.endsWith('=') || trimmed.endsWith('+') || trimmed.endsWith('-')) {
         errors.push({
-          type: 'warning',
+          file: '',
+          line: index + 1,
+          column: line.length,
+          severity: 'warning',
           message: 'Incomplete expression',
-          line: index + 1
+          source: 'syntax'
         });
       }
     }

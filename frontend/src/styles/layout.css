@@ -1,0 +1,337 @@
+/* Professional VS Code-Style IDE Layout */
+
+/* Main layout container */
+.ide-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+    position: relative;
+    background: #0a0a0a;
+}
+
+/* Left Panel */
+.ide-body>.resizable-panel:first-child {
+    background: #0d0d0d;
+    border-right: 1px solid #1a1a1a;
+}
+
+/* Center Editor Area */
+.ide-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    background: #1e1e1e;
+}
+
+/* Right Panel */
+.ide-body>.resizable-panel:last-of-type {
+    background: #0d0d0d;
+    border-left: 1px solid #1a1a1a;
+}
+
+/* Debugger panels stack */
+.debugger-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow-y: auto;
+    height: 100%;
+    background: #0a0a0a;
+}
+
+.debugger-panels>* {
+    flex-shrink: 0;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+/* Panel sections */
+.panel-section {
+    padding: 0;
+    background: #0a0a0a;
+}
+
+.panel-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #a0a0a0;
+    background: #0d0d0d;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+.panel-title svg {
+    color: #f97316;
+}
+
+/* Resizable Panel Styles */
+.resizable-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0a0a0a;
+    min-width: 200px;
+}
+
+/* Dock Panel Styles */
+.dock-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #0a0a0a;
+}
+
+.dock-panel-tabs {
+    display: flex;
+    gap: 0;
+    background: #0d0d0d;
+    border-bottom: 1px solid #1a1a1a;
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+
+.dock-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.dock-tab:hover {
+    color: #aaa;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.dock-tab.active {
+    color: #f97316;
+    border-bottom-color: #f97316;
+    background: rgba(249, 115, 22, 0.05);
+}
+
+.dock-tab svg {
+    width: 14px;
+    height: 14px;
+}
+
+.dock-tab .badge {
+    background: #f97316;
+    color: white;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 10px;
+    margin-left: 4px;
+}
+
+.dock-panel-content {
+    flex: 1;
+    overflow: auto;
+    background: #0a0a0a;
+}
+
+/* File Tree Styles */
+.file-tree {
+    padding: 8px 0;
+}
+
+.file-tree-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    font-size: 13px;
+    color: #ccc;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.file-tree-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.file-tree-item.active {
+    background: rgba(249, 115, 22, 0.15);
+    color: #f97316;
+}
+
+.file-tree-item svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+/* Empty State */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px;
+    text-align: center;
+    color: #666;
+}
+
+.empty-state svg {
+    width: 64px;
+    height: 64px;
+    color: #f97316;
+    margin-bottom: 16px;
+}
+
+.empty-state h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 8px;
+}
+
+.empty-state p {
+    font-size: 14px;
+    color: #888;
+    max-width: 300px;
+}
+
+/* User cards in collaboration */
+.user-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #f97316;
+}
+
+.user-info {
+    flex: 1;
+}
+
+.user-info .font-medium {
+    font-size: 13px;
+    color: #fff;
+}
+
+.user-info .text-neutral-500 {
+    font-size: 11px;
+    color: #666;
+}
+
+/* Stats grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 12px;
+}
+
+.stat-card {
+    background: #111;
+    border: 1px solid #1a1a1a;
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+/* Chat styles */
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+}
+
+.chat-input {
+    padding: 12px;
+    border-top: 1px solid #1a1a1a;
+}
+
+/* Bottom Panel absolute positioning fix */
+.bottom-panel-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: #0a0a0a;
+    border-top: 1px solid #1a1a1a;
+}
+
+/* Hide the original layout */
+.ide-main {
+    display: none !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #444;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.dock-panel-content>* {
+    animation: fadeIn 0.2s ease;
+}

@@ -18,7 +18,23 @@ node_modules/
 
 # Testing
 /coverage
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+*.env
+**/.env
+**/.env.local
 
+# Secrets and keys
+.flux/
+.auth_key
+*.key
+*.token
+*.credentials
 # Next.js
 /.next/
 /out/
