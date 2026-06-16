@@ -47,9 +47,9 @@ import ErrorBoundary from './Common/ErrorBoundary';
 // Professional Layout Component
 import ProfessionalLayout from './ProfessionalLayout';
 
-const SOCKET_URL = window.location.hostname === 'localhost'
+const SOCKET_URL = process.env.REACT_APP_BACKEND_URL || (window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
-  : `https://${window.location.hostname.replace('5000', '8000')}`;
+  : `https://${window.location.hostname.replace('5000', '8000')}`);
 
 const INITIAL_CODE = {};
 const FILE_STRUCTURE = [];
