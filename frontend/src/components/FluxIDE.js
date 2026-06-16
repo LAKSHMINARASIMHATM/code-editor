@@ -788,11 +788,13 @@ export const FluxIDE = () => {
         return;
       }
 
-      // Handle commit/push/pull success messages
-      if (data.result.message) {
-        addConsoleMessage(data.result.success ? 'success' : 'error', data.result.message);
+      // Handle commit/push/pull success/error messages
+      if (data.result.message || data.result.error) {
+        const msg = data.result.message || data.result.error;
+        addConsoleMessage(data.result.success ? 'success' : 'error', msg);
+
         // Refresh status after actions
-        if (['add', 'reset', 'commit', 'pull', 'checkout', 'createBranch', 'merge', 'branchDelete', 'repoCreate'].includes(data.action) && data.result.success) {
+        if (data.result.success && ['add', 'reset', 'commit', 'pull', 'checkout', 'createBranch', 'merge', 'branchDelete', 'repoCreate'].includes(data.action)) {
           socket.emit('git_status', { path: 'flux-project' });
         }
       }

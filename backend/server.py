@@ -272,6 +272,13 @@ async def code_change(sid, data):
 @sio.event
 async def env_sync_execute(sid, data):
     """Execute environment sync (e.g., npm install)"""
+    if not check_permission(sid, 'host'):
+        await sio.emit('terminal_output', {
+            'output': "\x1b[1;31mPermission Denied: Only the Host can sync environment.\x1b[0m\n",
+            'success': False
+        }, to=sid)
+        return
+
     file_name = data.get('file', '')
     logger.info(f"Env sync requested by {sid} for {file_name}")
     
@@ -641,6 +648,10 @@ async def git_reset(sid, data):
 @sio.event
 async def git_commit(sid, data):
     """Handle git commit"""
+    if not check_permission(sid, 'host'):
+        await sio.emit('git_response', {'action': 'commit', 'result': {'success': False, 'error': 'Permission Denied'}}, to=sid)
+        return
+
     path = data.get('path')
     message = data.get('message')
     result = await asyncio.to_thread(git_service.commit, path, message)
@@ -651,6 +662,10 @@ async def git_commit(sid, data):
 @sio.event
 async def git_push(sid, data):
     """Handle git push with auth"""
+    if not check_permission(sid, 'host'):
+        await sio.emit('git_response', {'action': 'push', 'result': {'success': False, 'error': 'Permission Denied'}}, to=sid)
+        return
+
     path = data.get('path')
     remote = data.get('remote', 'origin')
     branch = data.get('branch')
@@ -670,6 +685,10 @@ async def git_push(sid, data):
 @sio.event
 async def git_pull(sid, data):
     """Handle git pull with auth"""
+    if not check_permission(sid, 'host'):
+        await sio.emit('git_response', {'action': 'pull', 'result': {'success': False, 'error': 'Permission Denied'}}, to=sid)
+        return
+
     path = data.get('path')
     platform = data.get('platform', 'github.com')
     username = data.get('username', 'default')

@@ -1,12 +1,216 @@
-/* Professional IDE Layout - VS Code Style */
+/* Professional IDE Layout - Antigravity Style (VS Code Inspired) */
+
+:root {
+    --ide-bg: #1e1e1e;
+    --ide-sidebar-bg: #252526;
+    --ide-activity-bar-bg: #333333;
+    --ide-activity-icon-fg: #999999;
+    --ide-activity-active-fg: #ffffff;
+    --ide-panel-border: #2b2b2b;
+    --ide-accent: #007acc;
+    --ide-status-bar-bg: #007acc;
+    --ide-status-bar-fg: #ffffff;
+    --ide-text-secondary: #cccccc;
+    --ide-input-bg: #3c3c3c;
+    --ide-tab-active-bg: #1e1e1e;
+    --ide-tab-inactive-bg: #2d2d2d;
+}
 
 .professional-layout {
     display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--ide-bg);
+    color: var(--ide-text-primary);
+    overflow: hidden;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+/* Main Workspace Area (excludes Status Bar) */
+.workspace-container {
+    display: flex;
     flex: 1;
     overflow: hidden;
+}
+
+/* --- ACTIVITY BAR (Far Left) --- */
+.activity-bar {
+    width: 48px;
+    background: var(--ide-activity-bar-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 10px;
+    flex-shrink: 0;
+    z-index: 20;
+}
+
+.activity-item {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    color: var(--ide-activity-icon-fg);
     position: relative;
-    background: #0a0a0a;
+    transition: color 0.1s;
+}
+
+.activity-item:hover {
+    color: var(--ide-activity-active-fg);
+}
+
+.activity-item.active {
+    color: var(--ide-activity-active-fg);
+    border-left: 2px solid var(--ide-activity-active-fg);
+}
+
+.activity-item svg {
+    width: 24px;
+    height: 24px;
+}
+
+.activity-spacer {
+    flex: 1;
+}
+
+/* --- SIDE BAR (Explorer, Git, etc.) --- */
+.layout-sidebar {
+    background: var(--ide-sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--ide-panel-border);
+    position: relative;
+    contain: strict;
+}
+
+.sidebar-header {
+    height: 35px;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #bbbbbb;
+    flex-shrink: 0;
+}
+
+.sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* --- EDITOR AREA --- */
+.layout-center-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--ide-bg);
+    min-width: 0;
+}
+
+.layout-center {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- BOTTOM PANEL (Terminal) --- */
+.layout-bottom {
+    background: var(--ide-sidebar-bg);
+    border-top: 1px solid var(--ide-panel-border);
+    display: flex;
+    flex-direction: column;
+}
+
+.bottom-tabs {
+    display: flex;
+    height: 35px;
+    align-items: center;
+    padding-left: 10px;
+    border-bottom: 1px solid var(--ide-panel-border);
+}
+
+.bottom-tab {
+    background: transparent;
+    border: none;
+    color: #999;
+    font-size: 11px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 0 10px;
     height: 100%;
+    border-bottom: 1px solid transparent;
+}
+
+.bottom-tab:hover {
+    color: #fff;
+}
+
+.bottom-tab.active {
+    color: #fff;
+    border-bottom-color: var(--ide-accent);
+}
+
+.bottom-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+/* --- RIGHT PANEL (Auxiliary) --- */
+.layout-sidebar.right {
+    border-right: none;
+    border-left: 1px solid var(--ide-panel-border);
+}
+
+/* --- STATUS BAR --- */
+.status-bar {
+    height: 22px;
+    background: var(--ide-status-bar-bg);
+    color: var(--ide-status-bar-fg);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 12px;
+    flex-shrink: 0;
+    justify-content: space-between;
+    z-index: 30;
+    cursor: default;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-right: 15px;
+    cursor: pointer;
+}
+
+.status-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-corner {
+    background: var(--ide-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #424242;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #4f4f4f;
 }
 
 /* Sidebars */

@@ -136,8 +136,7 @@ export function analyzeCode(fileName, code, language) {
           source: 'pylint'
         });
       }
-      // Missing colon
-      if (line.trim().startsWith('if ') && !line.trim().endsWith(':')) {
+      if (trimmed.startsWith('if ') && !trimmed.endsWith(':')) {
         problems.push({
           file: fileName,
           line: index + 1,
@@ -149,7 +148,48 @@ export function analyzeCode(fileName, code, language) {
     });
   }
 
+  // GENERAL SECURITY RULES
+  // Detect potential secrets
+  const secretPatterns = [
+    /['"][A-Za-z0-9-_]{20,}['"]/g,  // Long random strings
+    /api_key|apikey|secret|password|token/i // Keywords
+  ];
+
+  secretPatterns.forEach(pattern => {
+    const match = code.match(pattern);
+    if (match) {
+      problems.push({
+        file: fileName,
+        line: 1, // Simplified
+        severity: 'error',
+        message: 'Potential hardcoded secret or token detected',
+        source: 'security'
+      });
+    }
+  });
+
   return problems;
+}
+
+function detectReactHooksViolations(code) {
+  // Simple check for hooks inside loops/conditions (heuristic)
+  // Real implementation would need AST
+  const violations = [];
+  const lines = code.split('\n');
+  let scopeDepth = 0;
+
+  lines.forEach((line, i) => {
+    if (line.includes('{')) scopeDepth++;
+    if (line.includes('}')) scopeDepth--;
+
+    if (scopeDepth > 1 && line.match(/use[A-Z]\w+\(/)) {
+      violations.push({
+        line: i + 1,
+        message: 'React Hooks must be called at the top level',
+      });
+    }
+  });
+  return violations;
 }
 
 function detectSyntaxErrors(code, language) {
